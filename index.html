@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="el">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Βιβλιοθηκάριος</title>
+<meta name="description" content="Βρίσκει βιβλία, τύπο της εποχής και επιστημονικές δημοσιεύσεις σε όλες τις γλώσσες — και κατεβάζει όσα είναι ελεύθερα.">
+<meta name="theme-color" content="#b4552e">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Βιβλιοθηκάριος">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Literata:opsz,wght@7..72,500;7..72,600&family=Noto+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#f6f2ea; --panel:#fffdf8; --ink:#2a261f; --muted:#776f62; --line:#e5dfd2; --soft:#efe8da;
+  --accent:#b4552e; --accent-2:#9a4524; --on-accent:#fff; --ok:#3d7a4c; --ok-soft:#e3efe2; --err:#b23b3b;
+  --gold:#9a6a12; --gold-soft:#f5ead2; --blue:#2f5f86; --blue-soft:#e2ebf3;
+  --shadow:0 1px 2px rgba(40,30,15,.06),0 6px 18px rgba(40,30,15,.06);
+  --serif:'Literata',Georgia,serif; --sans:'Noto Sans','Segoe UI',system-ui,sans-serif;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#1b1916; --panel:#24211d; --ink:#ece6da; --muted:#a59d8f; --line:#3a352e; --soft:#2e2a25;
+    --accent:#d9774c; --accent-2:#e88a5f; --on-accent:#1b1916; --ok:#7fbf8c; --ok-soft:#24342a; --err:#e07a7a;
+    --gold:#d9b45e; --gold-soft:#3a3123; --blue:#8ab4d8; --blue-soft:#22303b;
+    --shadow:0 1px 2px rgba(0,0,0,.3),0 6px 18px rgba(0,0,0,.25);
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#1b1916; --panel:#24211d; --ink:#ece6da; --muted:#a59d8f; --line:#3a352e; --soft:#2e2a25;
+  --accent:#d9774c; --accent-2:#e88a5f; --on-accent:#1b1916; --ok:#7fbf8c; --ok-soft:#24342a; --err:#e07a7a;
+  --gold:#d9b45e; --gold-soft:#3a3123; --blue:#8ab4d8; --blue-soft:#22303b;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 var(--sans);-webkit-text-size-adjust:100%}
+button,input,select,textarea{font:inherit;color:inherit}
+a{color:var(--accent)}
+header{position:sticky;top:0;z-index:20;display:flex;align-items:center;gap:10px;padding:calc(10px + env(safe-area-inset-top)) max(16px,env(safe-area-inset-right)) 10px max(16px,env(safe-area-inset-left));
+  background:color-mix(in srgb,var(--bg) 90%,transparent);backdrop-filter:blur(8px);border-bottom:1px solid var(--line)}
+.logo{width:34px;height:34px;border-radius:9px;background:var(--accent);color:var(--on-accent);display:grid;place-items:center;flex:none}
+h1{font:600 19px/1.1 var(--serif);margin:0}
+header small{display:block;color:var(--muted);font-size:12px}
+.hbtns{margin-left:auto;display:flex;gap:6px}
+.ib{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:var(--panel);border-radius:10px;padding:7px 10px;cursor:pointer}
+.ib span{font-size:13.5px}
+.ib.pri{background:var(--accent);color:var(--on-accent);border-color:var(--accent)}
+main{max-width:860px;margin:0 auto;padding:16px max(16px,env(safe-area-inset-left)) calc(40px + env(safe-area-inset-bottom))}
+.modes{display:flex;gap:4px;background:var(--soft);border-radius:12px;padding:4px;margin-bottom:10px}
+.modes button{flex:1;border:0;background:transparent;border-radius:9px;padding:8px 6px;cursor:pointer;color:var(--muted);font-weight:500;font-size:14px}
+.modes button.on{background:var(--panel);color:var(--ink);box-shadow:var(--shadow)}
+.modes{flex-wrap:wrap}.modes button{white-space:nowrap;flex:1 1 auto;padding:8px 10px}
+.kinds{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:16px 0 0;font-size:13px;color:var(--muted)}
+.kinds button{border:1px solid var(--line);background:var(--panel);border-radius:99px;padding:5px 12px;cursor:pointer;font-size:13px}
+.kinds button.on{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.search{background:var(--panel);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);padding:10px}
+.qrow{display:flex;gap:8px;align-items:flex-end}
+#q{flex:1;border:0;outline:0;background:transparent;resize:none;min-height:44px;max-height:160px;padding:8px 6px;font-size:16px}
+#go{border:0;background:var(--accent);color:var(--on-accent);border-radius:12px;width:46px;height:44px;cursor:pointer;flex:none;display:grid;place-items:center}
+#go:disabled{opacity:.5}
+.more{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:8px;padding-top:8px;border-top:1px dashed var(--line);font-size:13.5px;color:var(--muted)}
+.more input,.more select{border:1px solid var(--line);background:var(--bg);border-radius:9px;padding:6px 9px;min-width:0}
+.more .focus{flex:1 1 200px}
+.more input.yr{width:84px}
+.examples{display:flex;flex-wrap:wrap;gap:6px;margin:14px 0 0}
+.chip{border:1px solid var(--line);background:var(--panel);border-radius:99px;padding:5px 12px;cursor:pointer;font-size:13.5px}
+.intro{color:var(--muted);margin:22px 4px 0;font-size:14px}
+.intro b{color:var(--ink)}
+.msg{margin:18px 2px 10px;white-space:pre-wrap}
+.msg .und{display:inline-block;background:var(--blue-soft);color:var(--blue);border-radius:9px;padding:3px 9px;font-size:13px;margin-bottom:6px}
+.stats{display:flex;flex-wrap:wrap;gap:5px;font-size:12px;color:var(--muted);margin:4px 0 10px}
+.stats span{background:var(--soft);border-radius:99px;padding:1px 8px}
+.stats span.e{background:transparent;border:1px dashed var(--line)}
+.terms{font-size:12.5px;color:var(--muted);margin-bottom:8px}
+.terms i{font-style:normal;background:var(--soft);border-radius:6px;padding:0 6px;margin:0 3px 3px 0;display:inline-block}
+.box{background:var(--panel);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);overflow:hidden}
+.bar{display:flex;flex-wrap:wrap;gap:6px;padding:8px;border-bottom:1px solid var(--line);align-items:center}
+.seg{display:flex;background:var(--soft);border-radius:10px;padding:3px;gap:2px;overflow-x:auto;max-width:100%}
+.seg button{border:0;background:transparent;border-radius:8px;padding:5px 10px;cursor:pointer;color:var(--muted);white-space:nowrap;font-size:13px}
+.seg button.on{background:var(--panel);color:var(--ink);box-shadow:var(--shadow)}
+.bar select{border:1px solid var(--line);background:var(--panel);border-radius:9px;padding:5px 8px;font-size:13px;max-width:46vw}
+.card{display:flex;gap:11px;padding:12px;border-bottom:1px solid var(--line)}
+.card:last-child{border-bottom:0}
+.fmt{width:40px;height:52px;border-radius:5px;flex:none;display:grid;place-items:center;font-size:10.5px;font-weight:600;color:#fff;background:var(--blue);text-transform:uppercase}
+.fmt.pdf{background:#a2402a}.fmt.txt{background:#6f6656}.fmt.web{background:#4a7a6a}.fmt.paid{background:var(--gold-soft);color:var(--gold);font-size:17px}
+.fmt.cat{background:var(--soft);color:var(--muted)}.fmt.press{background:var(--gold-soft);color:var(--gold)}
+.info{flex:1;min-width:0}
+.t{font-weight:600;line-height:1.3}
+.t a{color:inherit;text-decoration:none}.t a:hover{text-decoration:underline}
+.meta{display:flex;flex-wrap:wrap;gap:4px 6px;align-items:center;margin-top:4px;font-size:12.5px;color:var(--muted)}
+.pill{border-radius:99px;padding:0 7px;background:var(--soft);font-size:11.5px;white-space:nowrap}
+.pill.cat{background:var(--gold-soft);color:var(--gold)}
+.rel{font-size:11px;padding:0 7px;border-radius:99px;white-space:nowrap}
+.rel.high{background:var(--ok-soft);color:var(--ok)}.rel.medium{background:var(--gold-soft);color:var(--gold)}.rel.low{background:var(--soft);color:var(--muted)}
+details.abs{font-size:13px;margin-top:4px}details.abs summary{cursor:pointer;color:var(--muted);font-size:12.5px}
+details.abs p{margin:4px 0 0;line-height:1.5}
+.acts{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.btn{border:1px solid var(--line);background:var(--panel);border-radius:9px;padding:5px 11px;cursor:pointer;font-size:13px;text-decoration:none;color:var(--ink);display:inline-flex;align-items:center;gap:5px}
+.btn.pri{background:var(--accent);color:var(--on-accent);border-color:var(--accent)}
+.btn.gold{color:var(--gold);border-color:color-mix(in srgb,var(--gold) 40%,var(--line))}
+.btn:disabled{opacity:.6}
+.cp{border:0;background:transparent;color:var(--muted);cursor:pointer;padding:0 4px;font-size:13px;border-radius:5px}
+.cp:hover{color:var(--accent);background:var(--soft)}
+.note{font-size:12.5px;color:var(--muted);margin-top:4px}
+.note.ok{color:var(--ok)}.note.err{color:var(--err)}
+.morebtn{display:block;width:100%;border:0;background:var(--soft);padding:10px;cursor:pointer;color:var(--muted)}
+.links{margin-top:12px;display:flex;flex-wrap:wrap;gap:6px;font-size:13px}
+.links b{width:100%;font-weight:500;color:var(--muted);font-size:12.5px}
+.empty{padding:24px;text-align:center;color:var(--muted)}
+.spin{display:inline-block;width:14px;height:14px;border:2px solid var(--line);border-top-color:var(--accent);border-radius:50%;animation:s 1s linear infinite;vertical-align:-2px;margin-right:6px}
+@keyframes s{to{transform:rotate(360deg)}}
+dialog{border:0;border-radius:16px;padding:0;width:min(640px,94vw);max-height:88vh;background:var(--panel);color:var(--ink);box-shadow:0 20px 60px rgba(0,0,0,.3)}
+dialog::backdrop{background:rgba(20,15,10,.45)}
+.dlg{padding:18px;overflow:auto;max-height:88vh}
+.dlg h3{margin:0 0 10px;font:600 18px var(--serif)}
+.x{float:right;border:0;background:transparent;font-size:20px;cursor:pointer;color:var(--muted)}
+.list{border:1px solid var(--line);border-radius:12px;padding:10px;margin-bottom:8px;cursor:pointer}
+.list .n{font-weight:600}.list .c{font-size:12.5px;color:var(--muted)}
+.row{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.row input{flex:1;min-width:0;border:1px solid var(--line);background:var(--bg);border-radius:9px;padding:7px 10px}
+.li{display:flex;gap:8px;padding:8px 0;border-bottom:1px solid var(--line);font-size:14px}
+.li .info{font-size:13.5px}
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:8px 14px;border-radius:99px;font-size:13.5px;z-index:50;opacity:0;transition:opacity .2s;pointer-events:none}
+.toast.on{opacity:1}
+footer{color:var(--muted);font-size:12px;text-align:center;padding:10px 16px calc(20px + env(safe-area-inset-bottom))}
+@media (max-width:560px){
+  header small,.ib span{display:none}
+  .card{padding:11px 10px}
+  .fmt{width:34px;height:46px}
+  .more input.yr{width:72px}
+}
+</style>
+</head>
+<body>
+<header>
+  <div class="logo"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5V5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2z"/><path d="M4 19.5A2 2 0 0 0 6 21h13"/><path d="M9 7h6"/></svg></div>
+  <div><h1>Βιβλιοθηκάριος</h1><small>βιβλία, τύπος και έρευνες σε κάθε γλώσσα</small></div>
+  <div class="hbtns">
+    <button class="ib pri" id="installBtn" hidden title="Εγκατάσταση ως εφαρμογή"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12m0 0-4-4m4 4 4-4M5 21h14"/></svg><span>Εγκατάσταση</span></button>
+    <button class="ib" id="listsBtn" title="Οι λίστες μου"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21l-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg><span>Λίστες</span></button>
+    <button class="ib" id="aboutBtn" title="Πληροφορίες"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.5"/></svg></button>
+  </div>
+</header>
+<main>
+  <div class="modes" id="modes">
+    <button data-m="books" class="on">📖 Βιβλία</button>
+    <button data-m="news">📰 Εφημερίδες</button>
+    <button data-m="mags">🗞 Περιοδικά</button>
+    <button data-m="articles">🎓 Άρθρα</button>
+    <button data-m="theses">🎓 Διατριβές</button>
+  </div>
+  <form class="search" id="sf">
+    <div class="qrow">
+      <textarea id="q" rows="1" placeholder="Θέμα ή ερώτηση, π.χ. «μελισσοκομία» ή «πώς ζούσαν οι μελισσοκόμοι στην Κρήτη τον 19ο αιώνα;»" autocomplete="off"></textarea>
+      <button id="go" aria-label="Αναζήτηση"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg></button>
+    </div>
+    <div class="more">
+      <span>🎯</span><input class="focus" id="focus" placeholder="Εστίαση (προαιρετικά): όνομα ή υποθέμα, π.χ. Βενιζέλος">
+      <span>Έτη</span><input class="yr" id="y1" inputmode="numeric" placeholder="από"><input class="yr" id="y2" inputmode="numeric" placeholder="έως">
+      <select id="rel"><option value="relevant">Μόνο σχετικά</option><option value="high">Μόνο πολύ σχετικά</option><option value="all">Όλα</option></select>
+    </div>
+  </form>
+  <div id="out">
+    <div class="examples" id="examples"></div>
+    <p class="intro" id="intro"></p>
+  </div>
+</main>
+<footer>Μόνο νόμιμες ελεύθερες πηγές · Όλα μένουν στη συσκευή σου — χωρίς λογαριασμό, χωρίς παρακολούθηση</footer>
+
+<dialog id="dlg"><div class="dlg" id="dlgBody"></div></dialog>
+<div class="toast" id="toast"></div>
+<script src="app.js"></script>
+</body>
+</html>
