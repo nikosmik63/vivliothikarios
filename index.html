@@ -53,7 +53,7 @@ main{max-width:860px;margin:0 auto;padding:16px max(16px,env(safe-area-inset-lef
 .modes{display:flex;gap:4px;background:var(--soft);border-radius:12px;padding:4px;margin-bottom:10px}
 .modes button{flex:1;border:0;background:transparent;border-radius:9px;padding:8px 6px;cursor:pointer;color:var(--muted);font-weight:500;font-size:14px}
 .modes button.on{background:var(--panel);color:var(--ink);box-shadow:var(--shadow)}
-.modes{display:grid;grid-template-columns:repeat(5,1fr)}
+.modes{display:grid;grid-template-columns:repeat(6,1fr)}
 .modes button{white-space:nowrap;padding:8px 4px;display:flex;align-items:center;justify-content:center;gap:6px}
 .modes i{font-style:normal;font-size:15px;line-height:1}
 .kinds{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:16px 0 0;font-size:13px;color:var(--muted)}
@@ -80,6 +80,10 @@ main{max-width:860px;margin:0 auto;padding:16px max(16px,env(safe-area-inset-lef
 .stats span.e{background:transparent;border:1px dashed var(--line)}
 .terms{font-size:12.5px;color:var(--muted);margin-bottom:8px}
 .terms i{font-style:normal;background:var(--soft);border-radius:6px;padding:0 6px;margin:0 3px 3px 0;display:inline-block}
+.sec{border-bottom:1px solid var(--line)}.sec:last-child{border-bottom:0}
+.sech{display:flex;align-items:center;gap:8px;padding:10px 12px 4px;font-weight:600;font-size:14px}
+.sech span{color:var(--muted);font-weight:500;font-size:12.5px;background:var(--soft);border-radius:99px;padding:1px 8px}
+.sech button{margin-left:auto;border:0;background:none;color:var(--accent);font:inherit;font-size:13px;font-weight:600;cursor:pointer}
 .box{background:var(--panel);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);overflow:hidden}
 .bar{display:flex;flex-wrap:wrap;gap:6px;padding:8px;border-bottom:1px solid var(--line);align-items:center}
 .seg{display:flex;background:var(--soft);border-radius:10px;padding:3px;gap:2px;overflow-x:auto;max-width:100%}
@@ -135,8 +139,8 @@ footer{color:var(--muted);font-size:12px;text-align:center;padding:10px 16px cal
   .card{padding:11px 10px}
   .fmt{width:34px;height:46px}
   .modes{gap:2px;padding:3px}
-  .modes button{flex-direction:column;gap:3px;padding:7px 2px;font-size:11.5px}
-  .modes i{font-size:18px}
+  .modes{grid-template-columns:repeat(3,1fr)}
+  .modes button{padding:8px 2px;font-size:13px;gap:5px}
   .more{gap:8px}
   .more .tgt{display:none}
   .more .focus{flex:1 1 100%}
@@ -158,7 +162,8 @@ footer{color:var(--muted);font-size:12px;text-align:center;padding:10px 16px cal
 </header>
 <main>
   <div class="modes" id="modes">
-    <button data-m="books" class="on"><i>📖</i><span>Βιβλία</span></button>
+    <button data-m="all" class="on"><i>✨</i><span>Όλα</span></button>
+    <button data-m="books"><i>📖</i><span>Βιβλία</span></button>
     <button data-m="news"><i>📰</i><span>Εφημερίδες</span></button>
     <button data-m="mags"><i>🗞</i><span>Περιοδικά</span></button>
     <button data-m="articles"><i>🎓</i><span>Άρθρα</span></button>
