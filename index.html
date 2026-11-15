@@ -53,7 +53,9 @@ main{max-width:860px;margin:0 auto;padding:16px max(16px,env(safe-area-inset-lef
 .modes{display:flex;gap:4px;background:var(--soft);border-radius:12px;padding:4px;margin-bottom:10px}
 .modes button{flex:1;border:0;background:transparent;border-radius:9px;padding:8px 6px;cursor:pointer;color:var(--muted);font-weight:500;font-size:14px}
 .modes button.on{background:var(--panel);color:var(--ink);box-shadow:var(--shadow)}
-.modes{flex-wrap:wrap}.modes button{white-space:nowrap;flex:1 1 auto;padding:8px 10px}
+.modes{display:grid;grid-template-columns:repeat(5,1fr)}
+.modes button{white-space:nowrap;padding:8px 4px;display:flex;align-items:center;justify-content:center;gap:6px}
+.modes i{font-style:normal;font-size:15px;line-height:1}
 .kinds{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:16px 0 0;font-size:13px;color:var(--muted)}
 .kinds button{border:1px solid var(--line);background:var(--panel);border-radius:99px;padding:5px 12px;cursor:pointer;font-size:13px}
 .kinds button.on{background:var(--ink);color:var(--bg);border-color:var(--ink)}
@@ -66,6 +68,7 @@ main{max-width:860px;margin:0 auto;padding:16px max(16px,env(safe-area-inset-lef
 .more input,.more select{border:1px solid var(--line);background:var(--bg);border-radius:9px;padding:6px 9px;min-width:0}
 .more .focus{flex:1 1 200px}
 .more input.yr{width:84px}
+.yrs{display:flex;align-items:center;gap:6px}
 .examples{display:flex;flex-wrap:wrap;gap:6px;margin:14px 0 0}
 .chip{border:1px solid var(--line);background:var(--panel);border-radius:99px;padding:5px 12px;cursor:pointer;font-size:13.5px}
 .intro{color:var(--muted);margin:22px 4px 0;font-size:14px}
@@ -131,7 +134,15 @@ footer{color:var(--muted);font-size:12px;text-align:center;padding:10px 16px cal
   header small,.ib span{display:none}
   .card{padding:11px 10px}
   .fmt{width:34px;height:46px}
-  .more input.yr{width:72px}
+  .modes{gap:2px;padding:3px}
+  .modes button{flex-direction:column;gap:3px;padding:7px 2px;font-size:11.5px}
+  .modes i{font-size:18px}
+  .more{gap:8px}
+  .more .tgt{display:none}
+  .more .focus{flex:1 1 100%}
+  .yrs{flex:1 1 55%;min-width:0}
+  .more input.yr{width:0;flex:1;min-width:0}
+  .more select{flex:1 1 35%;min-width:0}
 }
 </style>
 </head>
@@ -147,20 +158,20 @@ footer{color:var(--muted);font-size:12px;text-align:center;padding:10px 16px cal
 </header>
 <main>
   <div class="modes" id="modes">
-    <button data-m="books" class="on">📖 Βιβλία</button>
-    <button data-m="news">📰 Εφημερίδες</button>
-    <button data-m="mags">🗞 Περιοδικά</button>
-    <button data-m="articles">🎓 Άρθρα</button>
-    <button data-m="theses">🎓 Διατριβές</button>
+    <button data-m="books" class="on"><i>📖</i><span>Βιβλία</span></button>
+    <button data-m="news"><i>📰</i><span>Εφημερίδες</span></button>
+    <button data-m="mags"><i>🗞</i><span>Περιοδικά</span></button>
+    <button data-m="articles"><i>🎓</i><span>Άρθρα</span></button>
+    <button data-m="theses"><i>📜</i><span>Διατριβές</span></button>
   </div>
   <form class="search" id="sf">
     <div class="qrow">
-      <textarea id="q" rows="1" placeholder="Θέμα ή ερώτηση, π.χ. «μελισσοκομία» ή «πώς ζούσαν οι μελισσοκόμοι στην Κρήτη τον 19ο αιώνα;»" autocomplete="off"></textarea>
+      <textarea id="q" rows="1" placeholder="Γράψε θέμα ή ερώτηση…" autocomplete="off"></textarea>
       <button id="go" aria-label="Αναζήτηση"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg></button>
     </div>
     <div class="more">
-      <span>🎯</span><input class="focus" id="focus" placeholder="Εστίαση (προαιρετικά): όνομα ή υποθέμα, π.χ. Βενιζέλος">
-      <span>Έτη</span><input class="yr" id="y1" inputmode="numeric" placeholder="από"><input class="yr" id="y2" inputmode="numeric" placeholder="έως">
+      <span class="tgt">🎯</span><input class="focus" id="focus" placeholder="Εστίαση (προαιρετικά), π.χ. Βενιζέλος">
+      <span class="yrs"><span>Έτη</span><input class="yr" id="y1" inputmode="numeric" placeholder="από"><span>–</span><input class="yr" id="y2" inputmode="numeric" placeholder="έως"></span>
       <select id="rel"><option value="relevant">Μόνο σχετικά</option><option value="high">Μόνο πολύ σχετικά</option><option value="all">Όλα</option></select>
     </div>
   </form>
