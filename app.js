@@ -123,7 +123,7 @@ async function understand(text){
     const labels = L[q]?.labels || {};
     const byLang = {[lang0]: topic};
     for (const l of SEARCH_LANGS) if (labels[l] && !byLang[l]) byLang[l] = labels[l];
-    return {sentence: false, topic, byLang, concepts: q ? [labels.el || labels.en || topic] : [], keywords: [], y1, y2};
+    return {sentence: false, topic, byLang, concepts: q ? [labels.el || labels.en || topic] : [], keywords: [], y1, y2, qids: q ? [q] : []};
   }
   const toks = contentTokens(text);
   const cands = [...toks.slice(0, -1).map((t, i) => t + ' ' + toks[i + 1]), ...toks].slice(0, 12);
@@ -140,7 +140,7 @@ async function understand(text){
   }
   const topic = concepts.map(c => c.labels[lang0] || c.from).join(' ') || rest.join(' ') || toks.join(' ');
   byLang[lang0] = topic;
-  return {sentence: true, topic, byLang, concepts: concepts.map(c => c.labels.el || c.labels.en || c.from), keywords: rest, y1, y2};
+  return {sentence: true, topic, byLang, concepts: concepts.map(c => c.labels.el || c.labels.en || c.from), keywords: rest, y1, y2, qids: concepts.map(c => c.q)};
 }
 async function focusVariants(focus){
   if (!focus) return [];
@@ -272,7 +272,8 @@ async function pressEuropeana(term, y1, y2){
   const d = await getJSON('https://api.europeana.eu/record/v2/search.json?' + new URLSearchParams([['wskey', 'api2demo'], ['query', term], ['rows', '50'], ['profile', 'standard'], ...extra]), 25000);
   return (d.items || []).map(it => { const t = [].concat(it.title || [])[0] || ''; const m = t.match(/\d{4}-\d\d-\d\d/);
     return {id: 'eun-' + String(it.id).replace(/\W+/g, '').slice(-50), source: 'Europeana', publication: t.split(/\s+[-–]\s+\d{4}/)[0], date: m ? m[0] : String([].concat(it.year || [])[0] || ''),
-      lang: normLang([].concat(it.language || [])[0]), page: [].concat(it.edmIsShownAt || [])[0] || it.guid, place: [].concat(it.dataProvider || [])[0], press: true}; });
+      lang: normLang([].concat(it.language || [])[0]), page: [].concat(it.edmIsShownAt || [])[0] || it.guid, place: [].concat(it.dataProvider || [])[0],
+      country: CEN[plain([].concat(it.country || [])[0])] || '', press: true}; });
 }
 async function pressGallica(term, y1, y2, news = true){
   let query = `gallica all "${term}" and dc.type all "fascicule"` + (news ? '' : ' and (dc.title all "revue" or dc.title all "bulletin" or dc.title all "journal" or dc.title all "annales")');
@@ -362,12 +363,133 @@ const SCH_LINKS = (el, en) => [['Google Scholar', `https://scholar.google.com/sc
   ['BASE', `https://www.base-search.net/Search/Results?lookfor=${encodeURIComponent(en)}`], ['OATD — διατριβές', `https://oatd.org/oatd/search?q=${encodeURIComponent(en)}`],
   ['CORE', `https://core.ac.uk/search?q=${encodeURIComponent(en)}`]];
 
+// ───────────── ιστορική λειτουργία: αρχεία, αποχαρακτηρισμένα έγγραφα, πρωτογενή κείμενα ─────────────
+const CNAME = {gr: 'Ελλάδα', cy: 'Κύπρος', us: 'ΗΠΑ', gb: 'Ηνωμένο Βασίλειο', fr: 'Γαλλία', de: 'Γερμανία', it: 'Ιταλία', es: 'Ισπανία', nl: 'Ολλανδία',
+  be: 'Βέλγιο', at: 'Αυστρία', ch: 'Ελβετία', pl: 'Πολωνία', cz: 'Τσεχία', sk: 'Σλοβακία', hu: 'Ουγγαρία', ro: 'Ρουμανία', bg: 'Βουλγαρία', rs: 'Σερβία', hr: 'Κροατία',
+  si: 'Σλοβενία', ru: 'Ρωσία / ΕΣΣΔ', tr: 'Τουρκία', il: 'Ισραήλ', au: 'Αυστραλία', ca: 'Καναδάς', nz: 'Νέα Ζηλανδία', dk: 'Δανία', se: 'Σουηδία', no: 'Νορβηγία',
+  fi: 'Φινλανδία', ie: 'Ιρλανδία', pt: 'Πορτογαλία', ee: 'Εσθονία', lv: 'Λετονία', lt: 'Λιθουανία', lu: 'Λουξεμβούργο', mt: 'Μάλτα', eu: 'Ευρώπη', int: 'Διεθνή αρχεία'};
+const CEN = {greece: 'gr', cyprus: 'cy', 'united states': 'us', usa: 'us', 'united kingdom': 'gb', uk: 'gb', france: 'fr', germany: 'de', italy: 'it', spain: 'es',
+  netherlands: 'nl', belgium: 'be', austria: 'at', switzerland: 'ch', poland: 'pl', 'czech republic': 'cz', czechia: 'cz', slovakia: 'sk', hungary: 'hu', romania: 'ro',
+  bulgaria: 'bg', serbia: 'rs', croatia: 'hr', slovenia: 'si', russia: 'ru', turkey: 'tr', israel: 'il', australia: 'au', canada: 'ca', denmark: 'dk', sweden: 'se',
+  norway: 'no', finland: 'fi', ireland: 'ie', portugal: 'pt', estonia: 'ee', latvia: 'lv', lithuania: 'lt', luxembourg: 'lu', malta: 'mt', europe: 'eu'};
+const NOFLAG = /Windows/.test(navigator.userAgent);   // τα Windows δείχνουν γράμματα αντί για σημαίες
+const cflag = c => NOFLAG || !/^[a-z]{2}$/.test(c || '') ? '' : String.fromCodePoint(...[...c.toUpperCase()].map(x => 0x1F1E6 + x.charCodeAt(0) - 65));
+const cname = c => CNAME[c] || String(c || '').toUpperCase();
+const HTYPES = {archives: 'Αρχεία', declass: 'Αποχαρακτηρισμένα', texts: 'Πρωτογενή κείμενα', news: 'Τύπος εποχής', books: 'Βιβλία', articles: 'Μελέτες'};
+const HPLURAL = {archives: 'αρχειακά τεκμήρια', declass: 'αποχαρακτηρισμένα έγγραφα', texts: 'πρωτογενή κείμενα', news: 'φύλλα τύπου', books: 'βιβλία', articles: 'μελέτες'};
+const HSING = {archives: 'αρχειακό τεκμήριο', declass: 'αποχαρακτηρισμένο έγγραφο', texts: 'πρωτογενές κείμενο', news: 'φύλλο τύπου', books: 'βιβλίο', articles: 'μελέτη'};
+const HICON = {archives: '🗄', declass: '🔓', texts: '📜', news: '📰', books: '📖', articles: '🎓'};
+const HKIND = {archives: 'Αρχειακό τεκμήριο', declass: 'Αποχαρακτηρισμένο έγγραφο', texts: 'Πρωτογενές κείμενο', news: 'Δημοσίευμα τύπου', books: 'Βιβλίο', articles: 'Επιστημονική μελέτη'};
+const PRIMARY = new Set(['archives', 'declass', 'texts', 'news']);
+const yearOf = r => { const m = String(r.date || r.year || '').match(/(?<!\d)(1[0-9]\d\d|20\d\d)(?!\d)/); return m ? +m[1] : null; };
+const yearIn = t => { const m = String(t || '').match(/(?<!\d)(1[0-9]\d\d|20[0-2]\d)(?!\d)/); return m ? m[1] : ''; };
+const str = v => typeof v === 'string' ? v : v?.title || v?.name || '';
+const trUrl = u => `https://translate.google.com/translate?sl=auto&tl=el&u=${encodeURIComponent(u)}`;
+const wbUrl = u => `https://web.archive.org/web/2*/${u}`;
+const site = (d, t) => `https://www.google.com/search?q=${encodeURIComponent(`site:${d} ${t}`)}`;
+
+/* Βρετανικά Εθνικά Αρχεία (Discovery): περιγραφές φακέλων με ημερομηνίες και κωδικό αναφοράς */
+async function tna(term){
+  const d = await getJSON('https://discovery.nationalarchives.gov.uk/API/search/records?' + qs({'sps.searchQuery': term, 'sps.resultsPageSize': 40}), 25000);
+  const G = (x, k) => x?.[k] ?? x?.[k[0].toLowerCase() + k.slice(1)];
+  return (G(d, 'Records') || []).map(x => {
+    const id = G(x, 'Id'), desc = clean(G(x, 'Description')), held = [].concat(G(x, 'HeldBy') || [])[0];
+    return {id: 'tna-' + id, source: 'The National Archives (ΗΒ)', title: clean(G(x, 'Title')) || desc.slice(0, 140), abstract: desc.slice(0, 600),
+      date: String(G(x, 'CoveringDates') || ''), year: yearIn(G(x, 'StartDate') || G(x, 'CoveringDates')), reference: G(x, 'Reference') || '',
+      heldBy: str(held) || held?.Name || '', country: 'gb', lang: 'en', subjects: [], kind: 'catalog', arch: true,
+      page: `https://discovery.nationalarchives.gov.uk/details/r/${encodeURIComponent(id)}`};
+  });
+}
+/* Library of Congress: χειρόγραφα και αρχειακό υλικό */
+async function locManuscripts(term){
+  const d = await getJSON('https://www.loc.gov/search/?' + new URLSearchParams([['q', term], ['fo', 'json'], ['c', '40'], ['fa', 'original-format:manuscript/mixed material']]), 25000);
+  return (d.results || []).map(x => ({id: 'loc-' + String(x.id || x.url).replace(/\W+/g, '').slice(-60), source: 'Library of Congress', title: clean(str([].concat(x.title || '')[0])),
+    abstract: clean(str([].concat(x.description || [])[0])).slice(0, 600), date: String(x.date || ''), year: yearIn(x.date), lang: normLang(x.language),
+    heldBy: 'Library of Congress', note: clean(str([].concat(x.partof || [])[0])).slice(0, 80), country: 'us', subjects: [].concat(x.subject || []).map(str).slice(0, 20),
+    kind: 'free', readOnly: true, read: x.url || x.id, arch: true, page: x.url || x.id}));
+}
+/* Chronicling America: αμερικανικές εφημερίδες 1770–1963 (από το API της Library of Congress) */
+async function chronAm(term, y1, y2){
+  const p = [['q', term], ['fo', 'json'], ['c', '40']]; if (y1 || y2) p.push(['dates', `${y1 || 1770}/${y2 || 1963}`]);
+  const d = await getJSON('https://www.loc.gov/collections/chronicling-america/?' + new URLSearchParams(p), 25000);
+  return (d.results || []).map(x => ({id: 'ca-' + String(x.id || x.url).replace(/\W+/g, '').slice(-60), source: 'Chronicling America',
+    publication: clean(str([].concat(x.title || '')[0]).split(/,\s*(?:January|February|March|April|May|June|July|August|September|October|November|December)\b/)[0]).slice(0, 120),
+    date: String(x.date || '').slice(0, 10), lang: 'en', page: x.url || x.id, place: str([].concat(x.location_city || [])[0]), country: 'us', press: true}));
+}
+/* Europeana: αρχειακά τεκμήρια ευρωπαϊκών αρχείων και βιβλιοθηκών, με χώρα προέλευσης */
+async function europeanaArch(term, country){
+  const p = [['wskey', 'api2demo'], ['query', term], ['rows', '50'], ['profile', 'standard'], ['qf', 'TYPE:TEXT']];
+  if (country) p.push(['qf', 'COUNTRY:' + country]);
+  const d = await getJSON('https://api.europeana.eu/record/v2/search.json?' + new URLSearchParams(p), 25000);
+  return (d.items || []).map(it => {
+    const f = k => [].concat(it[k] || [])[0] || '', yr = String(f('year'));
+    return {id: 'eua-' + String(it.id).replace(/\W+/g, '').slice(-50), source: 'Europeana', title: clean(f('title')), abstract: clean(f('dcDescription')).slice(0, 600),
+      date: yr, year: yr, lang: normLang(f('language')), heldBy: f('dataProvider'), country: CEN[plain(f('country'))] || '', subjects: [], kind: 'free', readOnly: true,
+      read: f('edmIsShownAt') || it.guid, arch: true, page: f('edmIsShownAt') || it.guid};
+  });
+}
+/* Internet Archive: αποχαρακτηρισμένα έγγραφα (FOIA, CIA, FBI, State Department, βρετανικές υπηρεσίες κ.ά.) */
+const DECL = '(declassified OR FOIA OR "freedom of information" OR CIA OR FBI OR NSA OR "state department" OR "national security" OR intelligence OR OSS OR MI5 OR MI6)';
+async function iaDeclass(term){
+  const q = `(title:(${term}) OR subject:(${term}) OR description:(${term})) AND mediatype:texts AND NOT access-restricted-item:true AND (subject:${DECL} OR title:${DECL} OR collection:(cia-collection OR nsia))`;
+  const d = await getJSON('https://archive.org/advancedsearch.php?' + new URLSearchParams([['q', q], ...['identifier', 'title', 'creator', 'date', 'year', 'subject', 'description', 'language'].map(f => ['fl[]', f]),
+    ['rows', '40'], ['sort[]', 'downloads desc'], ['output', 'json']]), 25000);
+  return (d.response?.docs || []).map(x => { const txt = [].concat(x.title || [], x.subject || [], x.creator || []).join(' ');
+    return {id: 'iad-' + x.identifier, source: 'Internet Archive', title: [].concat(x.title)[0] || '', author: [].concat(x.creator || []).join('; '),
+      date: String(x.date || x.year || '').slice(0, 10), year: String(x.year || x.date || '').slice(0, 4), lang: normLang(x.language),
+      subjects: [].concat(x.subject || []).slice(0, 20), abstract: clean([].concat(x.description || [])[0]).slice(0, 600),
+      heldBy: /\bCIA\b|central intelligence/i.test(txt) ? 'CIA' : /\bFBI\b|federal bureau/i.test(txt) ? 'FBI' : /\bNSA\b/.test(txt) ? 'NSA'
+        : /state department|department of state/i.test(txt) ? 'State Department' : /\bMI[56]\b|foreign office|war office/i.test(txt) ? 'Βρετανικές υπηρεσίες' : '',
+      country: /\bMI[56]\b|foreign office|war office|british/i.test(txt) ? 'gb' : /\bCIA\b|\bFBI\b|\bNSA\b|\bFOIA\b|\bOSS\b|state department|united states|pentagon/i.test(txt) ? 'us' : '',
+      kind: 'free', ext: 'pdf', ia: x.identifier, arch: true, page: `https://archive.org/details/${x.identifier}`}; });
+}
+/* Wikisource: πλήρη κείμενα πρωτογενών πηγών (συνθήκες, λόγοι, επιστολές, νόμοι) */
+async function wikisource(term, lang){
+  const d = await getJSON(`https://${lang}.wikisource.org/w/api.php?` + qs({action: 'query', list: 'search', srsearch: term, srlimit: 20, srprop: 'snippet', format: 'json', origin: '*'}), 15000);
+  return (d.query?.search || []).filter(h => !h.ns).map(h => { const u = `https://${lang}.wikisource.org/wiki/${encodeURIComponent(h.title.replace(/ /g, '_'))}`;
+    return {id: `ws-${lang}-${h.pageid}`, source: 'Wikisource', title: h.title, abstract: clean(h.snippet), year: yearIn(h.title), date: yearIn(h.title), lang, subjects: [],
+      kind: 'free', readOnly: true, read: u, arch: true, page: u}; });
+}
+/* Πλαίσιο από Wikidata και Wikipedia: χρονολογίες του γεγονότος ή του προσώπου, σύντομη περίληψη, ονόματα σε άλλες γλώσσες */
+async function histContext(qid){
+  const e = (await wd({action: 'wbgetentities', ids: qid, props: 'labels|descriptions|claims|sitelinks', languages: 'el|en|fr|de|it|es|ru|tr', sitefilter: 'elwiki|enwiki'})).entities?.[qid];
+  if (!e) return null;
+  const tv = p => (e.claims?.[p] || []).map(c => c.mainsnak?.datavalue?.value?.time).find(Boolean);
+  const yr = t => t ? (t[0] === '-' ? -1 : 1) * parseInt(t.slice(1), 10) : null;
+  const human = (e.claims?.P31 || []).some(c => c.mainsnak?.datavalue?.value?.id === 'Q5');
+  const start = human ? yr(tv('P569')) : yr(tv('P580')) ?? yr(tv('P585')) ?? yr(tv('P571'));
+  const end = human ? yr(tv('P570')) : yr(tv('P582')) ?? yr(tv('P585')) ?? yr(tv('P576'));
+  const labels = Object.fromEntries(Object.entries(e.labels || {}).map(([l, v]) => [l, cleanLabel(v.value)]));
+  const sl = e.sitelinks?.elwiki ? ['el', e.sitelinks.elwiki.title] : e.sitelinks?.enwiki ? ['en', e.sitelinks.enwiki.title] : null;
+  let sum = null;
+  if (sl) try { sum = await getJSON(`https://${sl[0]}.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(sl[1].replace(/ /g, '_'))}`, 12000); } catch (err) {}
+  return {qid, human, start: start > 0 ? start : null, end: (end ?? start) > 0 ? end ?? start : null, labels, label: labels.el || labels.en || '',
+    desc: e.descriptions?.el?.value || e.descriptions?.en?.value || '', extract: sum?.extract || '', thumb: sum?.thumbnail?.source || '',
+    url: sum?.content_urls?.desktop?.page || (sl ? `https://${sl[0]}.wikipedia.org/wiki/${encodeURIComponent(sl[1].replace(/ /g, '_'))}` : '')};
+}
+/* Αρχεία ανά χώρα: απευθείας αναζήτηση (ή αναζήτηση μέσα στον ιστότοπο, όπου το αρχείο δεν έχει σταθερό σύνδεσμο αναζήτησης) */
+const ARCH_LINKS = T => { const E = encodeURIComponent; return [
+  ['gr', 'Γενικά Αρχεία του Κράτους', site('gak.gr', T.el)], ['gr', 'ΕΛΙΑ', site('elia.org.gr', T.el)], ['gr', 'ΑΣΚΙ', site('askiweb.eu', T.el)],
+  ['gr', 'Αρχείο ΕΡΤ', site('archive.ert.gr', T.el)], ['gr', 'SearchCulture.gr', site('searchculture.gr', T.el)], ['gr', 'Ανέμη (Παν. Κρήτης)', site('anemi.lib.uoc.gr', T.el)],
+  ['us', 'CIA Reading Room', `https://www.cia.gov/readingroom/search/site/${E(T.en)}`], ['us', 'FBI Vault', `https://vault.fbi.gov/search?SearchableText=${E(T.en)}`],
+  ['us', 'FRUS (State Department)', `https://history.state.gov/search?q=${E(T.en)}`], ['us', 'Εθνικά Αρχεία ΗΠΑ (NARA)', `https://catalog.archives.gov/search?q=${E(T.en)}`],
+  ['us', 'National Security Archive', site('nsarchive.gwu.edu', T.en)], ['us', 'The Black Vault (FOIA)', `https://www.theblackvault.com/documentarchive/?s=${E(T.en)}`],
+  ['gb', 'The National Archives', `https://discovery.nationalarchives.gov.uk/results/r?_q=${E(T.en)}`], ['gb', 'Hansard (Βουλή)', `https://hansard.parliament.uk/search?searchTerm=${E(T.en)}`],
+  ['gb', 'Imperial War Museums', `https://www.iwm.org.uk/collections/search?query=${E(T.en)}`],
+  ['int', 'Digital Archive (Ψυχρός Πόλεμος)', site('digitalarchive.umd.edu', T.en)], ['int', 'Αρχεία ΟΗΕ', site('search.archives.un.org', T.en)], ['int', 'Αρχεία ΝΑΤΟ', site('archives.nato.int', T.en)],
+  ['eu', 'Archives Portal Europe', site('archivesportaleurope.net', T.en)], ['eu', 'Ιστορικά Αρχεία ΕΕ', site('archives.eui.eu', T.en)],
+  ['fr', 'FranceArchives', `https://francearchives.gouv.fr/fr/search?q=${E(T.fr)}`], ['de', 'Deutsche Digitale Bibliothek', `https://www.deutsche-digitale-bibliothek.de/searchresults?query=${E(T.de)}`],
+  ['de', 'Bundesarchiv (invenio)', 'https://invenio.bundesarchiv.de/'], ['it', 'Internet Culturale', site('internetculturale.it', T.it)],
+  ['it', 'Κρατικό Αρχείο Βενετίας', site('archiviodistatovenezia.it', T.it)], ['tr', 'Κρατικά (Οθωμανικά) Αρχεία', site('devletarsivleri.gov.tr', T.tr)],
+  ['ru', 'Σοβιετικά έγγραφα (sovdoc)', site('sovdoc.rusarchives.ru', T.ru)], ['il', 'Κρατικά Αρχεία Ισραήλ', site('archives.gov.il', T.en)],
+  ['ca', 'Αρχεία Καναδά', site('bac-lac.gc.ca', T.en)], ['au', 'Εθνικά Αρχεία Αυστραλίας', site('naa.gov.au', T.en)]]; };
+
 // ───────────── ένωση αποτελεσμάτων ─────────────
 const surname = a => { a = String(a || '').split(/;|,\s(?=[A-ZΑ-Ω][a-zα-ω]+\s[A-ZΑ-Ω])/)[0]; if (a.includes(',')) return a.split(',')[0].trim(); const p = a.match(/[\p{L}'’-]+/gu) || []; return p.at(-1) || ''; };
 function key(r){
   if (r.doi) return 'doi:' + r.doi;
   const t = plain(String(r.title || r.publication).split(/\s[:;/]\s|\s[-–—]\s|\(/)[0]).match(/[\p{L}\p{N}]+/gu)?.filter(w => !STOPW.has(w)).slice(0, 8).join(' ') || r.id;
-  return r.press ? r.id : t + '|' + plain(surname(r.author)).slice(0, 5);
+  return r.press || r.arch ? r.id : t + '|' + plain(surname(r.author)).slice(0, 5);   // αρχειακοί φάκελοι με ίδιο τίτλο είναι διαφορετικά τεκμήρια
 }
 function merge(list){
   const by = new Map();
@@ -396,6 +518,8 @@ async function runAll(jobs){
   return {out, stats, errs};
 }
 async function search(text){
+  state.cty = '';
+  if (state.mode === 'history') return searchHistory(text);
   const focus = $('#focus').value.trim(), rel = $('#rel').value;
   let y1 = +$('#y1').value || null, y2 = +$('#y2').value || null;
   setBusy(true);
@@ -463,6 +587,65 @@ const isPress = () => state.mode === 'news' || state.mode === 'mags';
 const isSch = () => state.mode === 'articles' || state.mode === 'theses';
 const inYears = (d, a, b) => { const ys = (String(d).match(/(?<!\d)(1[4-9]\d\d|20\d\d)(?!\d)/g) || []).map(Number); if (!ys.length) return true; return (!a || Math.max(...ys) >= a) && (!b || Math.min(...ys) <= b); };
 
+/* Ιστορική έρευνα: ίδιο θέμα σε αρχεία, αποχαρακτηρισμένα, πρωτογενή κείμενα, τύπο της εποχής και βιβλιογραφία */
+async function searchHistory(text){
+  const focus = $('#focus').value.trim(), rel = $('#rel').value;
+  let y1 = +$('#y1').value || null, y2 = +$('#y2').value || null;
+  setBusy(true);
+  $('#out').innerHTML = '<p class="msg"><span class="spin"></span>Ψάχνω σε αρχεία, αποχαρακτηρισμένα έγγραφα, τύπο της εποχής και βιβλιοθήκες…</p>';
+  try {
+    const u = await understand(text);
+    const [ctx, fv] = await Promise.all([u.qids?.length ? histContext(u.qids[0]).catch(() => null) : null, focusVariants(focus)]);
+    let auto = '';
+    if (!y1 && u.y1){ y1 = u.y1; y2 = u.y2; }
+    else if (!y1 && ctx?.start){ y1 = ctx.start; y2 = ctx.end || ctx.start; auto = 'wikidata'; }
+    if (y1 && !y2) y2 = y1;
+    const L = ctx?.labels || {};
+    const en = u.byLang.en || L.en || u.topic, el = u.byLang.el || L.el || (/[Ͱ-Ͽ]/.test(text) ? u.topic : '');
+    const T = {en, el: el || en, fr: u.byLang.fr || L.fr || en, de: u.byLang.de || L.de || en, it: u.byLang.it || L.it || en, ru: L.ru || en, tr: L.tr || en};
+    const fl = l => fv.length ? ' ' + (fv.find(v => (l === 'el') === /[Ͱ-Ͽ]/.test(v)) || fv[0]) : '';
+    const p1 = y1 ? y1 - 1 : null, p2 = y1 ? (y2 || y1) + 2 : null;   // τύπος: λίγο πριν και λίγο μετά το γεγονός
+    const jobs = [], J = (k, name, p) => jobs.push([name, p.then(r => r.map(x => ({...x, t: k})))]);
+    J('archives', 'Εθνικά Αρχεία ΗΒ', tna(en + fl('en')));
+    J('archives', 'Library of Congress', locManuscripts(en + fl('en')));
+    J('archives', 'Europeana', europeanaArch(en + fl('en')));
+    if (plain(T.de) !== plain(en)) J('archives', 'Europeana', europeanaArch(T.de + fl('de')));
+    if (el) J('archives', 'Ελληνικά αρχεία (Europeana)', europeanaArch(el + fl('el'), 'greece'));
+    J('declass', 'Αποχαρακτηρισμένα (Internet Archive)', iaDeclass(en + fl('en')));
+    J('texts', 'Wikisource', wikisource(en + fl('en'), 'en')); if (el) J('texts', 'Wikisource', wikisource(el + fl('el'), 'el'));
+    J('news', 'Internet Archive', pressArchive(en + fl('en'), p1, p2, true)); J('news', 'Gallica', pressGallica(T.fr + fl('fr'), p1, p2, true));
+    J('news', 'Europeana', pressEuropeana(en + fl('en'), p1, p2)); if (!y1 || y1 <= 1963) J('news', 'Chronicling America', chronAm(en + fl('en'), p1, p2));
+    if (el) J('news', 'Ελληνικός τύπος (Europeana)', europeana(el, 'el', [['theme', 'newspaper'], ['qf', 'COUNTRY:greece']])
+      .then(r => r.map(x => ({...x, publication: x.title, date: x.year, country: 'gr', press: true}))));
+    J('books', 'Internet Archive', archive(en + fl('en'), 'en')); J('books', 'Open Library', openlibrary(en, 'en'));
+    if (el){ J('books', 'Internet Archive', archive(el + fl('el'), 'el')); J('books', 'Open Library', openlibrary(el, 'el')); }
+    J('articles', 'OpenAlex', openalex(en + fl('en'), null, null)); if (el) J('articles', 'OpenAlex', openalex(el + fl('el'), null, null));
+    const {out, stats, errs} = await runAll(jobs);
+    const terms = [...new Map([['el', el], ['en', en], ['fr', T.fr], ['de', T.de]].filter(([, t]) => t).map(([l, t]) => [plain(t), [l, t]])).values()];
+    const tm = matcher([...terms.map(([, t]) => t), ...u.concepts, ...Object.values(L)]), fm = fv.length ? matcher(fv) : null;
+    const groups = {}; for (const x of out) (groups[x.t] = groups[x.t] || []).push(x);
+    let dropped = 0, relaxed = false; const res = [];
+    for (const g of Object.keys(HTYPES)){
+      let rs = merge(groups[g] || []).map(x => ({...x, t: g}));
+      if (g === 'news') rs = rs.filter(r => !p1 || !r.date || inYears(r.date, p1, p2)).sort((a, b) => String(a.date).localeCompare(String(b.date)));
+      else {
+        rs.forEach(r => score(r, tm, fm));
+        const all = rs; rs = all.filter(r => r.relevance >= MIN[rel]); let d = all.length - rs.length;
+        if (rs.length < 3 && MIN[rel] > 1 && d){ rs = all.filter(r => r.relevance >= 1); d = all.length - rs.length; relaxed = true; }
+        dropped += d;
+        rs.sort((a, b) => b.relevance - a.relevance || (b.cited || 0) - (a.cited || 0));
+      }
+      res.push(...rs);
+    }
+    Object.assign(state, {results: res, view: 'all', tf: '', cat: '', lang: '', cty: '', shown: 30, q: text, hview: state.hview || 'list',
+      ctx: {...(ctx || {}), y1, y2, auto, topic: ctx?.label || u.topic}, links: ARCH_LINKS(T)});
+    render({u, stats, errs, dropped, relaxed, focus, fv, y1, y2, terms});
+    try { localStorage.setItem('vv_last', JSON.stringify({q: text, mode: state.mode})); } catch (e) {}
+  } catch (e) {
+    $('#out').innerHTML = `<p class="msg note err">Κάτι πήγε στραβά: ${esc(e.message)}. Έλεγξε τη σύνδεση και ξαναδοκίμασε.</p>`;
+  } finally { setBusy(false); }
+}
+
 // ───────────── εμφάνιση ─────────────
 function setBusy(b){ $('#go').disabled = b; }
 const KIND = {free: 'Δωρεάν', paid: 'Επί πληρωμή', catalog: 'Κατάλογος', all: 'Όλα'};
@@ -471,11 +654,14 @@ function render(ctx){
   const r = state.results, isP = isPress(), isS = isSch();
   const okSrc = Object.entries(ctx.stats).filter(([, n]) => n).length;
   let head = '';
-  if (ctx.u.sentence) head += `<span class="und">Κατάλαβα: ${[...ctx.u.concepts, ...ctx.u.keywords].map(c => '«' + esc(c) + '»').join(', ')}${ctx.y1 ? ` · ${ctx.y1}–${ctx.y2}` : ''}</span>\n`;
-  else if (ctx.y1) head += `<span class="und">Περίοδος ${ctx.y1}–${ctx.y2}</span>\n`;
+  const hist = state.mode === 'history', autoY = hist && state.ctx?.auto && ctx.y1;
+  if (ctx.u.sentence) head += `<span class="und">Κατάλαβα: ${[...ctx.u.concepts, ...ctx.u.keywords].map(c => '«' + esc(c) + '»').join(', ')}${ctx.y1 && !autoY ? ` · ${ctx.y1}–${ctx.y2}` : ''}</span>\n`;
+  else if (ctx.y1 && !autoY) head += `<span class="und">Περίοδος ${ctx.y1}–${ctx.y2}</span>\n`;
+  if (autoY) head += `<span class="und">🕰 Χρονικό πλαίσιο από Wikidata: ${ctx.y1}${ctx.y2 !== ctx.y1 ? '–' + ctx.y2 : ''} · τον τύπο τον ψάχνω ${ctx.y1 - 1}–${ctx.y2 + 2}</span>\n`;
   if (ctx.focus) head += `<span class="und">🎯 ${esc(ctx.focus)}${ctx.fv.length > 1 ? ' (+' + (ctx.fv.length - 1) + ' μορφές ονόματος)' : ''}</span>\n`;
   const free = r.filter(x => x.kind === 'free').length, paid = r.filter(x => x.kind === 'paid').length, cat = r.filter(x => x.kind === 'catalog').length;
   let txt = !r.length ? (Object.keys(ctx.errs).length >= Object.keys(ctx.stats).length ? 'Δεν μπόρεσα να συνδεθώ με τις βιβλιοθήκες. Έλεγξε τη σύνδεση.' : 'Δεν βρήκα αποτελέσματα. Δοκίμασε πιο γενικό θέμα ή «Όλα» στη σχετικότητα.')
+    : hist ? `Βρήκα ${r.length} πηγές από ${okSrc} αρχεία και βιβλιοθήκες: ${Object.keys(HTYPES).map(k => [k, r.filter(x => x.t === k).length]).filter(([, n]) => n).map(([k, n]) => `${n} ${(n === 1 ? HSING : HPLURAL)[k]}`).join(', ')}.`
     : state.mode === 'all' ? `Βρήκα ${r.length} αποτελέσματα από ${okSrc} πηγές: ${Object.keys(TYPES).map(k => [k, r.filter(x => x.t === k).length]).filter(([, n]) => n).map(([k, n]) => `${n} ${TYPES[k].toLowerCase()}`).join(', ')}.`
     : isP ? `Βρήκα ${r.length} τεύχη εφημερίδων/περιοδικών από ${okSrc} αρχεία.`
     : isS ? `🎓 ${r.length} επιστημονικές δημοσιεύσεις από ${okSrc} βάσεις: ${r.filter(x => x.url).length} με ελεύθερο PDF, ${free - r.filter(x => x.url).length} για ανάγνωση online, ${cat} με συνδρομή.`
@@ -487,19 +673,21 @@ function render(ctx){
   const st = Object.entries(ctx.stats).map(([k, n]) => `<span class="${ctx.errs[k] && !n ? 'e' : ''}" title="${esc(ctx.errs[k] || '')}">${esc(k)} ${ctx.errs[k] && !n ? '—' : n}</span>`).join('');
   const terms = ctx.terms.length > 1 ? `<div class="terms">Όροι: ${ctx.terms.map(([l, t]) => `<i title="${esc(LANGS[l] || l)}">${esc(t)}</i>`).join('')}</div>` : '';
   const kinds = `<div class="kinds"><span>Το ίδιο θέμα σε:</span>${Object.entries(MODES).map(([k, n]) => `<button data-kind="${k}" class="${k === state.mode ? 'on' : ''}">${n}</button>`).join('')}</div>`;
-  $('#out').innerHTML = `${kinds}<div class="msg">${head}${esc(txt)}</div><div class="stats">${st}</div>${terms}<div id="res"></div>` +
-    (state.links.length ? `<div class="links"><b>Ψάξε επίσης απευθείας σε:</b>${state.links.map(([n, u]) => `<a class="btn" href="${esc(u)}" target="_blank" rel="noopener">${esc(n)} ↗</a>`).join('')}</div>` : '');
+  $('#out').innerHTML = `${kinds}<div class="msg">${head}${esc(txt)}</div><div class="stats">${st}</div>${terms}${hist ? ctxCard() + countriesLine() : ''}<div id="res"></div>` +
+    (hist ? archLinksHtml() : state.links.length ? `<div class="links"><b>Ψάξε επίσης απευθείας σε:</b>${state.links.map(([n, u]) => `<a class="btn" href="${esc(u)}" target="_blank" rel="noopener">${esc(n)} ↗</a>`).join('')}</div>` : '');
   drawList();
   $('#out').querySelectorAll('[data-kind]').forEach(b => b.onclick = () => { if (b.dataset.kind === state.mode) return; setMode(b.dataset.kind, true); search(state.q); });
 }
 const TYPES = {books: 'Βιβλία', news: 'Εφημερίδες', mags: 'Περιοδικά', articles: 'Επιστημονικά άρθρα', theses: 'Διατριβές'};
 const TICON = {books: '📖', news: '📰', mags: '🗞', articles: '🎓', theses: '📜'};
-const anyCard = r => (r.press ? pcard : card)(r);
+const anyCard = r => (r.press ? pcard : r.arch ? acard : card)(r);
 function visible(){
-  return state.results.filter(r => (!state.tf || r.t === state.tf) && (state.view === 'all' || r.kind === state.view) && (!state.cat || r.category === state.cat) && (!state.lang || r.lang === state.lang));
+  return state.results.filter(r => (!state.tf || r.t === state.tf) && (state.view === 'all' || r.kind === state.view) && (!state.cat || r.category === state.cat)
+    && (!state.lang || r.lang === state.lang) && (!state.cty || r.country === state.cty));
 }
 function drawList(){
   const box = $('#res'); if (!box) return;
+  if (state.mode === 'history') return drawHistory(box);
   const all = state.results, isP = isPress(), isS = isSch(), K = isS ? SKIND : KIND;
   if (!all.length){ box.innerHTML = ''; return; }
   const cnt = v => all.filter(r => v === 'all' || r.kind === v).length;
@@ -531,6 +719,7 @@ function drawList(){
 }
 const byId = id => state.results.find(r => r.id === id) || listsAll().find(r => r.id === id);
 function citation(r){
+  if (r.arch) return [r.title, r.reference, r.heldBy || r.source, r.date || r.year, r.page].filter(Boolean).join(', ');
   if (r.press) return [r.publication, r.date].filter(Boolean).join(', ');
   if (r.scholar) return [r.author, r.year ? `(${r.year})` : '', r.title + '.', r.venue ? r.venue + '.' : '', r.doi ? 'https://doi.org/' + r.doi : ''].filter(Boolean).join(' ');
   return [r.title, [r.author, r.year].filter(Boolean).join(', ')].filter(Boolean).join(' — ');
@@ -546,6 +735,7 @@ function card(r){
   if (r.readOnly) act += `<a class="btn" href="${esc(r.read || r.page)}" target="_blank" rel="noopener">Ανάγνωση ↗</a>`;
   if (r.kind === 'paid') act += `${r.price ? `<span class="pill cat">${esc(r.price)}</span>` : ''}<a class="btn gold" href="${esc(r.buy || r.page)}" target="_blank" rel="noopener">Αγορά ↗</a>`;
   if (r.kind !== 'free' || r.readOnly) act += `<button class="btn" data-hunt="${esc(r.id)}" title="Ψάχνει το ίδιο βιβλίο σε Gutenberg, Open Library και Internet Archive">🔎 Βρες δωρεάν</button>`;
+  if (state.mode === 'history') act += `<button class="btn" data-crit="${esc(r.id)}">🔍 Κριτική</button>`;
   act += `<button class="btn" data-add="${esc(r.id)}">+ Λίστα</button><button class="btn" data-share="${esc(r.id)}">Κοινοποίηση</button>`;
   return `<div class="card"><div class="fmt ${esc(cls)}">${esc(badge)}</div><div class="info">
     <div class="t"><a href="${esc(r.page)}" target="_blank" rel="noopener">${esc(r.title)}</a><button class="cp" data-cp="${esc(r.id)}" title="Αντιγραφή ${r.scholar ? 'παραπομπής' : 'τίτλου'}">⧉</button></div>
@@ -554,10 +744,155 @@ function card(r){
     <div class="acts">${act}</div><div class="note" id="n-${esc(r.id)}"></div></div></div>`;
 }
 function pcard(r){
+  const h = state.mode === 'history';
   return `<div class="card"><div class="fmt press">📰</div><div class="info">
     <div class="t"><a href="${esc(r.page)}" target="_blank" rel="noopener">${esc(r.publication)}</a><button class="cp" data-cp="${esc(r.id)}" title="Αντιγραφή">⧉</button></div>
-    <div class="meta"><span class="pill">${esc(r.date || 'χωρίς ημερομηνία')}</span>${r.lang ? `<span class="pill">${esc(LANGS[r.lang] || r.lang)}</span>` : ''}<span>${esc([r.place, r.source].filter(Boolean).join(' · '))}</span></div>
-    <div class="acts"><a class="btn pri" href="${esc(r.page)}" target="_blank" rel="noopener">Άνοιγμα ↗</a><button class="btn" data-add="${esc(r.id)}">+ Λίστα</button><button class="btn" data-share="${esc(r.id)}">Κοινοποίηση</button></div></div></div>`;
+    <div class="meta"><span class="pill">${esc(r.date || 'χωρίς ημερομηνία')}</span>${h && r.country ? `<span class="pill">${cflag(r.country)} ${esc(cname(r.country))}</span>` : ''}${r.lang ? `<span class="pill">${esc(LANGS[r.lang] || r.lang)}</span>` : ''}<span>${esc([r.place, r.source].filter(Boolean).join(' · '))}</span></div>
+    <div class="acts"><a class="btn pri" href="${esc(r.page)}" target="_blank" rel="noopener">Άνοιγμα ↗</a>${h && r.lang !== 'el' ? `<a class="btn" href="${esc(trUrl(r.page))}" target="_blank" rel="noopener" title="Αυτόματη μετάφραση της σελίδας στα ελληνικά">Μετάφραση ↗</a>` : ''}${h ? `<button class="btn" data-crit="${esc(r.id)}">🔍 Κριτική</button>` : ''}<button class="btn" data-add="${esc(r.id)}">+ Λίστα</button><button class="btn" data-share="${esc(r.id)}">Κοινοποίηση</button></div></div></div>`;
+}
+/* Κάρτα αρχειακού τεκμηρίου / αποχαρακτηρισμένου εγγράφου / πρωτογενούς κειμένου */
+function acard(r){
+  const badge = {archives: 'ΑΡΧ', declass: 'ΑΠΧ', texts: 'ΚΕΙΜ'}[r.t] || 'ΑΡΧ';
+  const meta = [r.date || r.year, r.heldBy && r.heldBy !== r.source ? r.heldBy : '', r.reference, r.source, r.note].filter(Boolean).map(esc).join(' · ');
+  const relb = r.level && r.level !== 'none' ? `<span class="rel ${r.level}" title="${esc((r.why || []).join(' · '))}">${r.level === 'high' ? '●●● πολύ σχετικό' : r.level === 'medium' ? '●● σχετικό' : '● λίγο σχετικό'}</span>` : '';
+  const u = r.read || r.page;
+  let act = r.ia ? `<button class="btn pri" data-dl="${esc(r.id)}">↓ PDF</button>` : '';
+  act += `<a class="btn${r.ia ? '' : ' pri'}" href="${esc(u)}" target="_blank" rel="noopener">Άνοιγμα ↗</a>`;
+  if (r.lang !== 'el') act += `<a class="btn" href="${esc(trUrl(u))}" target="_blank" rel="noopener" title="Αυτόματη μετάφραση της σελίδας στα ελληνικά">Μετάφραση ↗</a>`;
+  act += `<button class="btn" data-crit="${esc(r.id)}">🔍 Κριτική πηγής</button><button class="btn" data-add="${esc(r.id)}">+ Λίστα</button><button class="btn" data-share="${esc(r.id)}">Κοινοποίηση</button>`;
+  return `<div class="card"><div class="fmt arch ${esc(r.t)}">${badge}</div><div class="info">
+    <div class="t"><a href="${esc(r.page)}" target="_blank" rel="noopener">${esc(r.title)}</a><button class="cp" data-cp="${esc(r.id)}" title="Αντιγραφή παραπομπής">⧉</button></div>
+    <div class="meta">${relb}<span class="pill k-${esc(r.t)}">${esc(HKIND[r.t] || 'Τεκμήριο')}</span>${r.country ? `<span class="pill">${cflag(r.country)} ${esc(cname(r.country))}</span>` : ''}${r.lang ? `<span class="pill">${esc(LANGS[r.lang] || r.lang)}</span>` : ''}<span>${meta}</span></div>
+    ${r.abstract ? `<details class="abs"><summary>Περιγραφή</summary><p>${esc(r.abstract)}</p></details>` : ''}
+    <div class="acts">${act}</div><div class="note" id="n-${esc(r.id)}"></div></div></div>`;
+}
+/* Σύντομη γραμμή για χρονολόγιο και προβολή ανά χώρα */
+function trow(r){
+  const meta = [r.date || r.year, r.press ? r.place : r.heldBy, r.source, r.country && cname(r.country)].filter(Boolean).map(esc).join(' · ');
+  return `<div class="tl"><span class="ti" title="${esc(HKIND[r.t] || '')}">${HICON[r.t] || '•'}</span><div class="info"><a href="${esc(r.read || r.page)}" target="_blank" rel="noopener">${esc(r.title || r.publication)}</a>
+    <div class="note">${meta}</div></div><div class="ta"><button class="cp" data-crit="${esc(r.id)}" title="Κριτική πηγής">🔍</button><button class="cp" data-add="${esc(r.id)}" title="Προσθήκη σε λίστα">＋</button></div></div>`;
+}
+function ctxCard(){
+  const c = state.ctx; if (!c || !(c.extract || c.desc)) return '';
+  const ex = c.extract && c.extract.length > 420 ? c.extract.slice(0, 420).replace(/\s\S*$/, '') + '…' : c.extract;
+  return `<div class="ctx">${c.thumb ? `<img src="${esc(c.thumb)}" alt="" loading="lazy">` : ''}<div><div class="ct">${esc(c.label || c.topic)}${c.start ? ` <span>${c.start}${c.end && c.end !== c.start ? '–' + c.end : ''}</span>` : ''}</div>
+    ${c.desc ? `<div class="note">${esc(c.desc)}</div>` : ''}${ex ? `<p>${esc(ex)}</p>` : ''}${c.url ? `<a href="${esc(c.url)}" target="_blank" rel="noopener">Wikipedia ↗</a>` : ''}</div></div>`;
+}
+function countriesLine(){
+  const n = {}; state.results.filter(r => PRIMARY.has(r.t) && r.country).forEach(r => { n[r.country] = (n[r.country] || 0) + 1; });
+  const cs = Object.entries(n).sort((a, b) => b[1] - a[1]);
+  return cs.length ? `<div class="cline"><b>Πρωτογενείς πηγές από:</b>${cs.map(([c, k]) => `<button class="pill${state.cty === c ? ' on' : ''}" data-cty="${c}" title="Δείξε μόνο αυτή τη χώρα">${cflag(c)} ${esc(cname(c))} ${k}</button>`).join('')}</div>` : '';
+}
+function archLinksHtml(){
+  const g = {}; state.links.forEach(([c, n, u]) => (g[c] = g[c] || []).push([n, u]));
+  return `<div class="links"><b>Ψάξε απευθείας στα αρχεία κάθε χώρας (ανοίγουν σε νέα καρτέλα):</b>${Object.entries(g).map(([c, ls]) =>
+    `<div class="lg"><span>${cflag(c)} ${esc(cname(c))}</span>${ls.map(([n, u]) => `<a class="btn" href="${esc(u)}" target="_blank" rel="noopener">${esc(n)} ↗</a>`).join('')}</div>`).join('')}</div>`;
+}
+function timelineHTML(items){
+  const dated = items.map(r => [yearOf(r), r]).filter(([y]) => y).sort((a, b) => a[0] - b[0] || String(a[1].date || '').localeCompare(String(b[1].date || '')));
+  if (!dated.length) return '<div class="empty">Κανένα από αυτά τα αποτελέσματα δεν έχει χρονολογία — δες τον «Κατάλογο».</div>';
+  const c = state.ctx || {}, e1 = c.y1, e2 = c.y2 || c.y1, und = items.length - dated.length;
+  const a = dated[0][0], span = dated.at(-1)[0] - a, step = span <= 30 ? 1 : span <= 150 ? 5 : span <= 600 ? 10 : 50, from = a - ((a % step) + step) % step;
+  const bins = {}; dated.forEach(([y]) => { const b = y - ((y % step) + step) % step; bins[b] = (bins[b] || 0) + 1; });
+  const keys = []; for (let b = from; b <= dated.at(-1)[0]; b += step) keys.push(b);
+  const max = Math.max(...Object.values(bins)), every = Math.ceil(keys.length / 8);
+  const inEv = (b, s = step) => e1 && b <= e2 && b + s - 1 >= e1;
+  const hist = `<div class="hist">${keys.map((b, i) => `<div class="hb${inEv(b) ? ' ev' : ''}" title="${b}${step > 1 ? '–' + (b + step - 1) : ''}: ${bins[b] || 0} πηγές"><i style="height:${bins[b] ? Math.max(6, Math.round(bins[b] / max * 100)) : 0}%"></i><span>${i % every ? '' : b}</span></div>`).join('')}</div>`;
+  let html = '', last = null;
+  for (const [y, r] of dated.slice(0, state.shown)){ if (y !== last){ html += `<div class="ty${inEv(y, 1) ? ' ev' : ''}">${y}${inEv(y, 1) ? ' <span>γεγονός</span>' : ''}</div>`; last = y; } html += trow(r); }
+  return `${hist}<div class="legend">${e1 ? '<span class="sw"></span> η περίοδος του γεγονότος · ' : ''}${dated.length} πηγές με χρονολογία${und ? `, ${und} χωρίς (στον «Κατάλογο»)` : ''}</div>${html}` +
+    (dated.length > state.shown ? `<button class="morebtn" id="moreBtn">Δείξε περισσότερα (${dated.length - state.shown})</button>` : '');
+}
+function countryHTML(items){
+  const g = {}; items.forEach(r => { const k = r.country || (r.lang ? 'lang:' + r.lang : 'x'); (g[k] = g[k] || []).push(r); });
+  const known = k => k.length <= 3 && k !== 'x';
+  const ks = Object.keys(g).sort((a, b) => known(b) - known(a) || g[b].length - g[a].length);
+  return ks.map(k => { const rs = g[k], nm = k === 'x' ? 'Άγνωστη προέλευση' : k.startsWith('lang:') ? `Γλώσσα: ${LANGS[k.slice(5)] || k.slice(5)} (χωρίς χώρα)` : `${cflag(k)} ${cname(k)}`;
+    const types = Object.keys(HTYPES).map(t => [t, rs.filter(r => r.t === t).length]).filter(([, n]) => n).map(([t, n]) => `${HICON[t]} ${n}`).join('  ');
+    return `<div class="sec"><div class="sech">${esc(nm)} <span>${rs.length}</span><small class="ty2">${types}</small></div>${rs.slice(0, 8).map(trow).join('')}${rs.length > 8
+      ? `<div class="note" style="padding:2px 12px 10px">+${rs.length - 8} ακόμη${known(k) ? ` — <button class="cp" data-cty="${k}">δες όλα από ${esc(cname(k))}</button>` : ''}</div>` : ''}</div>`; }).join('') || '<div class="empty">Τίποτα σε αυτό το φίλτρο.</div>';
+}
+function drawHistory(box){
+  const all = state.results;
+  if (!all.length){ box.innerHTML = ''; return; }
+  const vis = visible(), tc = k => all.filter(r => r.t === k).length, langs = [...new Set(all.map(r => r.lang).filter(Boolean))];
+  const hv = `<div class="seg">${[['list', '☰ Κατάλογος'], ['time', '🕰 Χρονολόγιο'], ['country', '🌍 Ανά χώρα']].map(([v, n]) => `<button data-hv="${v}" class="${state.hview === v ? 'on' : ''}">${n}</button>`).join('')}</div>`;
+  const seg = `<div class="seg">${['', ...Object.keys(HTYPES)].filter(k => !k || tc(k)).map(k => `<button data-tf="${k}" class="${state.tf === k ? 'on' : ''}">${k ? HICON[k] + ' ' + HTYPES[k] : 'Όλα'} (${k ? tc(k) : all.length})</button>`).join('')}</div>`;
+  const langsel = langs.length > 1 ? `<select id="fl"><option value="">Όλες οι γλώσσες</option>${langs.map(l => `<option value="${l}" ${l === state.lang ? 'selected' : ''}>${esc(LANGS[l] || l)}</option>`).join('')}</select>` : '';
+  const cty = state.cty ? `<button class="pill on" data-cty="" title="Κατάργηση φίλτρου">${cflag(state.cty)} ${esc(cname(state.cty))} ✕</button>` : '';
+  let body;
+  if (state.hview === 'time') body = timelineHTML(vis);
+  else if (state.hview === 'country') body = countryHTML(vis);
+  else if (!state.tf) body = Object.keys(HTYPES).map(k => { const g = vis.filter(r => r.t === k); if (!g.length) return '';
+    return `<div class="sec"><div class="sech">${HICON[k]} ${HTYPES[k]} <span>${g.length}</span>${g.length > 5 ? `<button data-tf="${k}">Δες όλα →</button>` : ''}</div>${g.slice(0, 5).map(anyCard).join('')}</div>`; }).join('') || '<div class="empty">Τίποτα σε αυτό το φίλτρο.</div>';
+  else body = `<div id="cards">${vis.slice(0, state.shown).map(anyCard).join('') || '<div class="empty">Τίποτα σε αυτό το φίλτρο.</div>'}</div>${vis.length > state.shown ? `<button class="morebtn" id="moreBtn">Δείξε περισσότερα (${vis.length - state.shown})</button>` : ''}`;
+  box.innerHTML = `<div class="box"><div class="bar">${hv}<button class="btn" id="dossBtn" title="Όσα βλέπεις, σε ένα αρχείο κειμένου (.md) για NotebookLM, Word ή σημειώσεις">⤓ Φάκελος έρευνας</button></div>
+    <div class="bar">${seg}${langsel}${cty}</div>${body}</div>`;
+  box.querySelectorAll('[data-hv]').forEach(b => b.onclick = () => { state.hview = b.dataset.hv; state.shown = state.hview === 'time' ? 80 : 30; drawList(); });
+  box.querySelectorAll('[data-tf]').forEach(b => b.onclick = () => { state.tf = b.dataset.tf; state.shown = 30; if (state.tf && state.hview !== 'list') state.hview = 'list'; drawList(); if (state.tf) box.scrollIntoView({behavior: 'smooth', block: 'start'}); });
+  $('#fl') && ($('#fl').onchange = e => { state.lang = e.target.value; state.shown = 30; drawList(); });
+  $('#moreBtn') && ($('#moreBtn').onclick = () => { state.shown += state.hview === 'time' ? 80 : 30; drawList(); });
+  $('#dossBtn').onclick = () => { const t = state.ctx?.topic || state.q; saveFile(`Fakelos - ${String(t).slice(0, 60)}.md`, dossierMD(t, visible(), state.ctx), 'text/markdown'); toast('Ο φάκελος κατέβηκε'); };
+}
+/* Φάκελος έρευνας σε Markdown: πλαίσιο, χρονολόγιο, πηγές ανά είδος και χώρα — ανεβαίνει αυτούσιος στο NotebookLM */
+const mdEsc = s => String(s || '').replace(/([[\]])/g, '\\$1');
+const gkey = r => HTYPES[r.t] ? r.t : r.t === 'mags' ? 'news' : r.t === 'theses' ? 'articles' : r.press ? 'news' : r.scholar ? 'articles' : 'books';
+function dossierMD(title, items, c){
+  const L = [`# Φάκελος έρευνας: ${title}`, '', `Δημιουργήθηκε με τον Βιβλιοθηκάριο, ${new Date().toLocaleDateString('el-GR')} · ${items.length} πηγές.`, ''];
+  if (c && (c.extract || c.start)){
+    L.push('## Πλαίσιο', '');
+    if (c.start) L.push(`Χρονικό πλαίσιο: ${c.start}${c.end && c.end !== c.start ? '–' + c.end : ''}`, '');
+    if (c.extract) L.push(c.extract, '');
+    if (c.url) L.push(`Πηγή: ${c.url}`, '');
+  }
+  const cs = {}; items.filter(r => r.country).forEach(r => { cs[r.country] = (cs[r.country] || 0) + 1; });
+  if (Object.keys(cs).length) L.push('## Προέλευση πηγών ανά χώρα', '', ...Object.entries(cs).sort((a, b) => b[1] - a[1]).map(([k, n]) => `- ${cname(k)}: ${n}`), '');
+  const dated = items.map(r => [yearOf(r), r]).filter(([y]) => y).sort((a, b) => a[0] - b[0] || String(a[1].date || '').localeCompare(String(b[1].date || '')));
+  if (dated.length) L.push('## Χρονολόγιο πηγών', '', ...dated.map(([y, r]) => `- ${r.date || y} — ${HKIND[gkey(r)]}: [${mdEsc(r.title || r.publication)}](${r.page})${r.country ? ' · ' + cname(r.country) : ''}`), '');
+  for (const k of Object.keys(HTYPES)){
+    const g = items.filter(r => gkey(r) === k); if (!g.length) continue;
+    L.push(`## ${HTYPES[k]} (${g.length})`, '');
+    for (const r of g){
+      const m = [r.author, r.date || r.year, r.heldBy, r.reference, r.title && r.publication ? r.publication : '', r.venue, r.source, r.country && cname(r.country)].filter(Boolean);
+      L.push(`- **${mdEsc(r.title || r.publication)}**`, `  ${m.join(' · ')}`, `  ${r.page}`);
+      if (r.abstract) L.push(`  > ${String(r.abstract).replace(/\s+/g, ' ').slice(0, 400)}`);
+    }
+    L.push('');
+  }
+  L.push('## Ερωτήματα για τη μελέτη', '', '- Τι λένε οι πηγές κάθε χώρας για το ίδιο γεγονός, και πού διαφωνούν;',
+    '- Ποιες πληροφορίες υπάρχουν μόνο στα αποχαρακτηρισμένα ή αρχειακά έγγραφα και όχι στον τύπο της εποχής;',
+    '- Πώς άλλαξε η αφήγηση από τις σύγχρονες πηγές στη μεταγενέστερη βιβλιογραφία;', '- Ποιανού οι φωνές λείπουν από τις πηγές;', '');
+  return L.join('\n');
+}
+/* Κριτική πηγής: τι ξέρουμε για την προέλευση, ερωτήσεις ελέγχου και πηγές άλλης προέλευσης από την ίδια περίοδο για διασταύρωση */
+function dlgCritic(r){
+  const c = state.ctx || {}, y = yearOf(r), k = gkey(r), prim = PRIMARY.has(k), e1 = c.y1, e2 = c.y2 || c.y1;
+  const relT = y && e1 && state.mode === 'history' ? (y < e1 ? `${e1 - y} χρόνια πριν από το γεγονός` : y <= e2 ? 'σύγχρονη με το γεγονός' : `${y - e2} χρόνια μετά το γεγονός`) : '';
+  const facts = [['Είδος', (HKIND[k] || 'Πηγή') + (prim ? ' — πρωτογενής πηγή' : ' — δευτερογενής πηγή')],
+    ['Προέλευση', [r.heldBy, r.reference, r.title && r.publication ? r.publication : '', r.author, r.source].filter(Boolean).join(' · ') || 'άγνωστη'],
+    ['Χρονολογία', (r.date || r.year || 'άγνωστη') + (relT ? ` (${relT})` : '')], r.country && ['Χώρα', cname(r.country)], r.lang && ['Γλώσσα', LANGS[r.lang] || r.lang]].filter(Boolean);
+  const Q = prim ? ['Ποιος το έγραψε ή το κατέγραψε, και με ποια ιδιότητα; Ήταν αυτόπτης μάρτυρας ή μεταφέρει όσα άκουσε από άλλους;',
+    'Για ποιον γράφτηκε και με ποιον σκοπό; (εσωτερική αναφορά, διπλωματικό τηλεγράφημα, προπαγάνδα, είδηση για το κοινό)',
+    k === 'declass' ? 'Ήταν απόρρητο όταν γράφτηκε: συχνά είναι πιο ειλικρινές από τις δημόσιες δηλώσεις, αλλά δείχνει μόνο όσα ήξερε ή πίστευε η υπηρεσία. Τι έχει μαυριστεί κατά την αποχαρακτήριση και γιατί;'
+      : k === 'news' ? 'Ποια ήταν η πολιτική γραμμή της εφημερίδας; Υπήρχε λογοκρισία ή πόλεμος εκείνη την περίοδο;'
+      : 'Είναι το πρωτότυπο ή αντίγραφο / μετάφραση; Λείπουν σελίδες ή συνημμένα;',
+    'Τι δεν αναφέρει; Ποιανού η φωνή λείπει;', 'Επιβεβαιώνεται από πηγή άλλης χώρας ή της άλλης πλευράς; Πού διαφωνούν;']
+    : ['Ποιος είναι ο συγγραφέας και ποια η ειδίκευσή του;', 'Σε ποιες πρωτογενείς πηγές στηρίζεται και τις παραθέτει;',
+      'Γράφτηκε πριν ή μετά το άνοιγμα των σχετικών αρχείων;', 'Παρουσιάζει και αντίθετες απόψεις;'];
+  const origin = x => x.country || x.heldBy || x.source;
+  const cross = y ? state.results.filter(x => x.id !== r.id && PRIMARY.has(gkey(x)) && yearOf(x) && Math.abs(yearOf(x) - y) <= 1 && origin(x) !== origin(r)).slice(0, 6) : [];
+  const u = r.read || r.page;
+  $('#dlgBody').innerHTML = `<button class="x" onclick="dlg.close()">✕</button><h3>🔍 Κριτική πηγής</h3>
+    <p style="margin:0 0 8px"><a href="${esc(u)}" target="_blank" rel="noopener"><b>${esc(r.title || r.publication)}</b></a></p>
+    <table class="crit">${facts.map(([a, b]) => `<tr><th>${esc(a)}</th><td>${esc(b)}</td></tr>`).join('')}</table>
+    <div class="row" style="margin:10px 0">${r.lang !== 'el' ? `<a class="btn" href="${esc(trUrl(u))}" target="_blank" rel="noopener">Μετάφραση ↗</a>` : ''}
+      <a class="btn" href="${esc(wbUrl(u))}" target="_blank" rel="noopener" title="Παλαιότερα αντίγραφα της σελίδας στο Internet Archive">Wayback ↗</a>
+      <a class="btn" href="https://web.archive.org/save/${esc(u)}" target="_blank" rel="noopener" title="Κρατά μόνιμο αντίγραφο της σελίδας, για να μη χαθεί η παραπομπή">Αποθήκευση αντιγράφου ↗</a></div>
+    <b>Ερωτήσεις πριν τη χρησιμοποιήσεις</b><ol class="q">${Q.map(q => `<li>${esc(q)}</li>`).join('')}</ol>
+    ${cross.length ? `<b>Διασταύρωσε με πηγές άλλης προέλευσης (${y - 1}–${y + 1})</b>${cross.map(x => `<div class="li"><span>${HICON[gkey(x)]}</span><div class="info"><a href="${esc(x.read || x.page)}" target="_blank" rel="noopener">${esc(x.title || x.publication)}</a>
+      <div class="note">${esc([x.date || x.year, x.heldBy || x.place || x.source, x.country && cname(x.country)].filter(Boolean).join(' · '))}</div></div></div>`).join('')}`
+      : prim && y ? '<p class="note">Δεν βρήκα στα αποτελέσματα πηγή άλλης προέλευσης από την ίδια περίοδο. Δοκίμασε τους συνδέσμους «αρχεία κάθε χώρας» κάτω από τα αποτελέσματα.</p>' : ''}`;
+  if (!dlg.open) dlg.showModal();
 }
 
 // ───────────── ενέργειες ─────────────
@@ -610,10 +945,16 @@ async function share(r){
   copy(`${data.text}\n${data.url}`);
 }
 document.addEventListener('click', e => {
-  const b = e.target.closest('[data-dl],[data-hunt],[data-add],[data-share],[data-cp]'); if (!b) return;
-  const id = b.dataset.dl || b.dataset.hunt || b.dataset.add || b.dataset.share || b.dataset.cp, r = byId(id); if (!r) return;
+  const f = e.target.closest('[data-cty]');
+  if (f){   // φίλτρο χώρας (ιστορική λειτουργία)
+    state.cty = f.dataset.cty === state.cty ? '' : f.dataset.cty; state.shown = 30; if (state.cty && state.hview === 'country') state.hview = 'list';
+    document.querySelectorAll('.cline [data-cty]').forEach(p => p.classList.toggle('on', p.dataset.cty === state.cty));
+    drawList(); $('#res')?.scrollIntoView({behavior: 'smooth', block: 'start'}); return;
+  }
+  const b = e.target.closest('[data-dl],[data-hunt],[data-add],[data-share],[data-cp],[data-crit]'); if (!b) return;
+  const id = b.dataset.dl || b.dataset.hunt || b.dataset.add || b.dataset.share || b.dataset.cp || b.dataset.crit, r = byId(id); if (!r) return;
   if (b.dataset.dl) download(r, b); else if (b.dataset.hunt) hunt(r); else if (b.dataset.add) addToList(r, b);
-  else if (b.dataset.share) share(r); else copy(citation(r));
+  else if (b.dataset.share) share(r); else if (b.dataset.crit) dlgCritic(r); else copy(citation(r));
 });
 
 // ───────────── λίστες (στη συσκευή) ─────────────
@@ -621,14 +962,15 @@ function lists(){ try { return JSON.parse(localStorage.getItem('vv_lists') || '[
 function saveLists(l){ try { localStorage.setItem('vv_lists', JSON.stringify(l)); } catch (e) { toast('Δεν αποθηκεύτηκε (ιδιωτική περιήγηση;)'); } }
 const listsAll = () => lists().flatMap(l => l.items);
 const slim = r => Object.fromEntries(Object.entries(r).filter(([k]) => ['id', 'title', 'publication', 'author', 'year', 'date', 'lang', 'kind', 'ext', 'url', 'ia', 'page', 'source', 'sources',
-  'category', 'venue', 'doi', 'cited', 'scholar', 'press', 'readOnly', 'read', 'price', 'buy'].includes(k)));
+  'category', 'venue', 'doi', 'cited', 'scholar', 'press', 'readOnly', 'read', 'price', 'buy', 't', 'arch', 'country', 'heldBy', 'reference', 'place', 'abstract'].includes(k))
+  .map(([k, v]) => [k, k === 'abstract' ? String(v || '').slice(0, 400) : v]));
 function addToList(r, btn){
   let l = lists();
   const cur = localStorage.getItem('vv_curlist');
   let target = l.find(x => x.id === cur);
   if (!target){ dlgLists(r); return; }
   if (!target.items.some(i => i.id === r.id)) target.items.push(slim(r));
-  saveLists(l); toast(`Προστέθηκε στη λίστα «${target.name}»`); if (btn) btn.textContent = '✓ ' + target.name.slice(0, 18);
+  saveLists(l); toast(`Προστέθηκε στη λίστα «${target.name}»`); if (btn) btn.textContent = btn.classList.contains('cp') ? '✓' : '✓ ' + target.name.slice(0, 18);
 }
 function dlgLists(pending){
   const l = lists(), cur = localStorage.getItem('vv_curlist');
@@ -642,45 +984,55 @@ function dlgLists(pending){
   if (!dlg.open) dlg.showModal();
 }
 function apa(r){
+  if (r.arch) return `${r.title}. (${r.date || r.year || 'χ.χ.'}). ${[r.reference, r.heldBy || r.source].filter(Boolean).join(', ')}. ${r.page}`;
   if (r.press) return `${r.publication}. (${r.date || 'χ.χ.'}). ${r.source}. ${r.page}`;
   const doi = r.doi ? ` https://doi.org/${r.doi}` : r.page ? ` ${r.page}` : '';
   return `${r.author || 'Άγνωστος'} (${r.year || 'χ.χ.'}). ${r.title}.${r.venue ? ' ' + r.venue + '.' : ''}${doi}`;
 }
 function bibtex(items){ return items.map((r, i) => { const k = (plain(surname(r.author)) || 'anon').replace(/\W/g, '') + (r.year || '') + i;
-  return `@${r.scholar ? 'article' : r.press ? 'misc' : 'book'}{${k},\n  title = {${r.title || r.publication}},\n  author = {${(r.author || '').replace(/;\s*/g, ' and ')}},\n  year = {${r.year || String(r.date || '').slice(0, 4)}},${r.venue ? `\n  journal = {${r.venue}},` : ''}${r.doi ? `\n  doi = {${r.doi}},` : ''}\n  url = {${r.page}}\n}`; }).join('\n\n'); }
-function ris(items){ return items.map(r => [`TY  - ${r.scholar ? 'JOUR' : r.press ? 'NEWS' : 'BOOK'}`, `TI  - ${r.title || r.publication}`,
+  return `@${r.scholar ? 'article' : r.press || r.arch ? 'misc' : 'book'}{${k},\n  title = {${r.title || r.publication}},\n  author = {${(r.author || '').replace(/;\s*/g, ' and ')}},\n  year = {${r.year || String(r.date || '').slice(0, 4)}},${r.venue ? `\n  journal = {${r.venue}},` : ''}${r.doi ? `\n  doi = {${r.doi}},` : ''}\n  url = {${r.page}}\n}`; }).join('\n\n'); }
+function ris(items){ return items.map(r => [`TY  - ${r.scholar ? 'JOUR' : r.press ? 'NEWS' : r.arch ? 'GEN' : 'BOOK'}`, `TI  - ${r.title || r.publication}`,
   ...String(r.author || '').split(/;\s*/).filter(Boolean).map(a => `AU  - ${a}`), `PY  - ${r.year || String(r.date || '').slice(0, 4)}`, r.venue ? `JO  - ${r.venue}` : '', r.doi ? `DO  - ${r.doi}` : '', `UR  - ${r.page}`, 'ER  - '].filter(Boolean).join('\r\n')).join('\r\n\r\n'); }
-function saveFile(name, text, type){ const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([text], {type})); a.download = name; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500); }
+/* Ονόματα αρχείων με λατινικούς χαρακτήρες: κάποιοι browsers αγνοούν τα ελληνικά και σώζουν σκέτο «download» */
+const GRLAT = {α: 'a', β: 'v', γ: 'g', δ: 'd', ε: 'e', ζ: 'z', η: 'i', θ: 'th', ι: 'i', κ: 'k', λ: 'l', μ: 'm', ν: 'n', ξ: 'x', ο: 'o', π: 'p', ρ: 'r', σ: 's', ς: 's',
+  τ: 't', υ: 'y', φ: 'f', χ: 'ch', ψ: 'ps', ω: 'o'};
+const fname = n => String(n).normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[α-ωΑ-Ω]/g, c => { const l = GRLAT[c.toLowerCase()] || ''; return c === c.toLowerCase() ? l : l.charAt(0).toUpperCase() + l.slice(1); })
+  .replace(/[\\/:*?"<>|–—]+/g, '-').replace(/[^\x20-\x7e]/g, '').replace(/\s+/g, ' ').trim() || 'vivliothikarios';
+function saveFile(name, text, type){ name = fname(name); const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([text], {type})); a.download = name; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500); }
 function dlgList(id){
   const L = lists(), x = L.find(y => y.id === id); if (!x) return dlgLists();
   $('#dlgBody').innerHTML = `<button class="x" onclick="dlg.close()">✕</button><h3>${esc(x.name)}</h3>
     <div class="row" style="margin-bottom:8px"><button class="btn" id="bk">← Λίστες</button><button class="btn" id="cpA">Αντιγραφή βιβλιογραφίας</button>
-    <button class="btn" id="bib">.bib</button><button class="btn" id="ris">.ris (Zotero)</button><button class="btn" id="del" style="margin-left:auto;color:var(--err)">Διαγραφή λίστας</button></div>
+    <button class="btn" id="bib">.bib</button><button class="btn" id="ris">.ris (Zotero)</button><button class="btn" id="md" title="Φάκελος έρευνας με χρονολόγιο και πηγές ανά είδος — για NotebookLM">.md (φάκελος)</button>
+    <button class="btn" id="del" style="margin-left:auto;color:var(--err)">Διαγραφή λίστας</button></div>
     ${x.items.map(r => `<div class="li"><div class="info"><a href="${esc(r.page)}" target="_blank" rel="noopener"><b>${esc(r.title || r.publication)}</b></a><div class="note">${esc(apa(r))}</div>
       <div class="acts">${r.kind === 'free' && !r.readOnly && !r.press ? `<button class="btn pri" data-dl="${esc(r.id)}">↓ Λήψη</button>` : ''}<button class="btn" data-cp="${esc(r.id)}">⧉</button><button class="btn" data-rm="${esc(r.id)}">Αφαίρεση</button></div><div class="note" id="n-${esc(r.id)}"></div></div></div>`).join('') || '<p class="note">Άδεια λίστα — πρόσθεσε πηγές με «+ Λίστα».</p>'}`;
   $('#bk').onclick = () => dlgLists();
   $('#cpA').onclick = () => copy(x.items.map(apa).sort().join('\n'));
   $('#bib').onclick = () => saveFile(x.name + '.bib', bibtex(x.items), 'application/x-bibtex');
   $('#ris').onclick = () => saveFile(x.name + '.ris', ris(x.items), 'application/x-research-info-systems');
+  $('#md').onclick = () => saveFile(x.name + '.md', dossierMD(x.name, x.items, null), 'text/markdown');
   $('#del').onclick = () => { if ($('#del').dataset.sure){ saveLists(lists().filter(y => y.id !== id)); dlgLists(); } else { $('#del').dataset.sure = 1; $('#del').textContent = 'Σίγουρα; Πάτα ξανά'; } };
   $('#dlgBody').querySelectorAll('[data-rm]').forEach(b => b.onclick = () => { const L2 = lists(); const y = L2.find(z => z.id === id); y.items = y.items.filter(i => i.id !== b.dataset.rm); saveLists(L2); dlgList(id); });
 }
 
 // ───────────── αρχικοποίηση ─────────────
 const dlg = $('#dlg');
-const MODES = {all: '✨ Όλα', books: '📖 Βιβλία', news: '📰 Εφημερίδες', mags: '🗞 Περιοδικά', articles: '🎓 Επιστημονικά άρθρα', theses: '📜 Διατριβές'};
+const MODES = {all: '✨ Όλα', books: '📖 Βιβλία', news: '📰 Εφημερίδες', mags: '🗞 Περιοδικά', articles: '🎓 Επιστημονικά άρθρα', theses: '📜 Διατριβές', history: '🏛 Ιστορία'};
 const EX = {all: ['ναυάγιο Περσεύς', 'Μικρασιατική καταστροφή', 'Πώς ζούσαν οι μελισσοκόμοι στην Κρήτη τον 19ο αιώνα;', 'Μινωικός πολιτισμός'],
   books: ['μελισσοκομία', 'Μινωικός πολιτισμός', 'Πώς ζούσαν οι μελισσοκόμοι στην Κρήτη τον 19ο αιώνα;', 'Κρητική επανάσταση 1866'],
   news: ['Σμύρνη 1922', 'Κρητική επανάσταση 1866-1869', 'Τιτανικός 1912', 'Μάχη της Κρήτης 1941'],
   mags: ['ναυάγιο Περσεύς', 'μελισσοκομία 1900-1930', 'Μινωικός πολιτισμός', 'αεροπορία 1910-1920'],
   articles: ['ιστορία της μελισσοκομίας', 'Μινωική γραφή Γραμμική Α', 'climate change and olive cultivation in Crete', 'Μικρασιατική καταστροφή'],
-  theses: ['Μικρασιατική καταστροφή', 'μελισσοκομία στην Κρήτη', 'Ενετοκρατία Κρήτη', 'υποβρύχια αρχαιολογία']};
+  theses: ['Μικρασιατική καταστροφή', 'μελισσοκομία στην Κρήτη', 'Ενετοκρατία Κρήτη', 'υποβρύχια αρχαιολογία'],
+  history: ['Μάχη της Κρήτης', 'Απαγωγή του Κράιπε', 'Τουρκική εισβολή στην Κύπρο', 'Δικτατορία των Συνταγματαρχών', 'Κρίση των πυραύλων της Κούβας']};
 const INTRO = {all: 'Γράψε ένα θέμα <b>ή μια ολόκληρη ερώτηση</b>: ψάχνω <b>ταυτόχρονα</b> σε βιβλία, εφημερίδες, περιοδικά, επιστημονικά άρθρα και διατριβές, σε όλες τις γλώσσες, και σου τα δείχνω ομαδοποιημένα.',
   books: 'Γράψε ένα θέμα <b>ή μια ολόκληρη ερώτηση</b>: ψάχνω σε όλες τις γλώσσες σε Gutenberg, Internet Archive, Open Library, Google Books και Europeana, ενώνω τα ίδια βιβλία και δείχνω ποια κατεβαίνουν δωρεάν.',
   news: 'Εφημερίδες εποχής από Internet Archive, Gallica και ευρωπαϊκές εθνικές βιβλιοθήκες. Βάλε έτη για να περιορίσεις την περίοδο.',
   mags: 'Περιοδικά, επιθεωρήσεις και δελτία εποχής από Internet Archive, Gallica και ελληνικά αρχεία.',
   articles: '<b>Μόνο επιστημονικά άρθρα</b> (περιοδικά με κριτές, πρακτικά, ανασκοπήσεις) από OpenAlex, Crossref, Semantic Scholar, DOAJ, Europe PMC, HAL και arXiv — με παραθέσεις, περίληψη και ελεύθερο PDF.',
-  theses: '<b>Διδακτορικές και μεταπτυχιακές διατριβές</b> από OpenAlex, HAL, Europe PMC (βρετανικές διατριβές) και άλλες βάσεις — και σύνδεσμοι για το ελληνικό ΕΑΔΔ.'};
+  theses: '<b>Διδακτορικές και μεταπτυχιακές διατριβές</b> από OpenAlex, HAL, Europe PMC (βρετανικές διατριβές) και άλλες βάσεις — και σύνδεσμοι για το ελληνικό ΕΑΔΔ.',
+  history: '<b>Ιστορική έρευνα</b>: γράψε ένα γεγονός, πρόσωπο ή περίοδο. Ψάχνω μαζί σε <b>αρχεία</b> (Βρετανικά Εθνικά Αρχεία, Library of Congress, ευρωπαϊκά αρχεία), <b>αποχαρακτηρισμένα έγγραφα</b> (CIA, FBI, State Department κ.ά.), <b>πρωτογενή κείμενα</b>, <b>τύπο της εποχής</b> και <b>βιβλιογραφία</b>. Τα βλέπεις σε <b>χρονολόγιο</b> και <b>ανά χώρα</b>, για να συγκρίνεις τι έλεγε κάθε πλευρά, με <b>κριτική πηγής</b> για κάθε έγγραφο και εξαγωγή <b>φακέλου έρευνας</b> για το NotebookLM.'};
 function setMode(m, keep){
   state.mode = m; document.querySelectorAll('#modes button').forEach(b => b.classList.toggle('on', b.dataset.m === m));
   if (!keep && (!state.results.length || $('#examples'))){
@@ -700,7 +1052,8 @@ $('#aboutBtn').onclick = () => {
     <p>Βρίσκει βιβλία, τύπο της εποχής και επιστημονικές δημοσιεύσεις σε όλες τις γλώσσες και δείχνει ποια διατίθενται νόμιμα δωρεάν.</p>
     <p><b>Εγκατάσταση ως εφαρμογή</b><br>${ios ? 'iPhone/iPad: πάτα <b>Κοινοποίηση</b> (το τετράγωνο με το βέλος) → <b>Προσθήκη στην οθόνη Αφετηρίας</b>.' : 'Android: μενού του Chrome (⋮) → <b>Εγκατάσταση εφαρμογής</b> ή <b>Προσθήκη στην αρχική οθόνη</b>.'}</p>
     <p><b>Απόρρητο</b><br>Δεν υπάρχει λογαριασμός ούτε διακομιστής: οι αναζητήσεις πάνε απευθείας από τη συσκευή σου στις βιβλιοθήκες, και οι λίστες σου μένουν μόνο σε αυτή τη συσκευή.</p>
-    <p><b>Πηγές</b><br>Project Gutenberg, Internet Archive, Open Library, Google Books, Europeana, Wikidata, Gallica, OpenAlex, Crossref, Semantic Scholar, DOAJ, Europe PMC, HAL, arXiv. Μόνο νόμιμα ελεύθερα αντίτυπα — όσα έχουν πνευματικά δικαιώματα εμφανίζονται για αγορά ή δανεισμό.</p>`;
+    <p><b>Ιστορική έρευνα</b><br>Συνδυάζει αρχεία (Βρετανικά Εθνικά Αρχεία, Library of Congress, Europeana), αποχαρακτηρισμένα έγγραφα (FOIA, CIA, FBI, State Department μέσω Internet Archive), πρωτογενή κείμενα (Wikisource), τύπο της εποχής και βιβλιογραφία. Δείχνει χρονολόγιο, προέλευση ανά χώρα, κριτική πηγής με διασταύρωση, και δίνει συνδέσμους για αρχεία σε Ελλάδα, ΗΠΑ, Βρετανία, Γαλλία, Γερμανία, Ιταλία, Τουρκία, Ρωσία, ΟΗΕ, ΝΑΤΟ κ.ά.</p>
+    <p><b>Πηγές</b><br>Project Gutenberg, Internet Archive, Open Library, Google Books, Europeana, Wikidata, Wikipedia, Wikisource, Gallica, Library of Congress, The National Archives (ΗΒ), OpenAlex, Crossref, Semantic Scholar, DOAJ, Europe PMC, HAL, arXiv. Μόνο νόμιμα ελεύθερα αντίτυπα — όσα έχουν πνευματικά δικαιώματα εμφανίζονται για αγορά ή δανεισμό.</p>`;
   dlg.showModal();
 };
 let deferred = null;

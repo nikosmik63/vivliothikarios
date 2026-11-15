@@ -53,7 +53,7 @@ main{max-width:860px;margin:0 auto;padding:16px max(16px,env(safe-area-inset-lef
 .modes{display:flex;gap:4px;background:var(--soft);border-radius:12px;padding:4px;margin-bottom:10px}
 .modes button{flex:1;border:0;background:transparent;border-radius:9px;padding:8px 6px;cursor:pointer;color:var(--muted);font-weight:500;font-size:14px}
 .modes button.on{background:var(--panel);color:var(--ink);box-shadow:var(--shadow)}
-.modes{display:grid;grid-template-columns:repeat(6,1fr)}
+.modes{display:grid;grid-template-columns:repeat(7,1fr)}
 .modes button{white-space:nowrap;padding:8px 4px;display:flex;align-items:center;justify-content:center;gap:6px}
 .modes i{font-style:normal;font-size:15px;line-height:1}
 .kinds{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:16px 0 0;font-size:13px;color:var(--muted)}
@@ -134,6 +134,43 @@ dialog::backdrop{background:rgba(20,15,10,.45)}
 .toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:8px 14px;border-radius:99px;font-size:13.5px;z-index:50;opacity:0;transition:opacity .2s;pointer-events:none}
 .toast.on{opacity:1}
 footer{color:var(--muted);font-size:12px;text-align:center;padding:10px 16px calc(20px + env(safe-area-inset-bottom))}
+/* ιστορική λειτουργία */
+.fmt.arch{background:#5b4a7a;font-size:9.5px}.fmt.arch.declass{background:#2f6a45}.fmt.arch.texts{background:#8a6224}
+.pill.k-archives{background:#ece6f5;color:#5b4a7a}.pill.k-declass{background:var(--ok-soft);color:var(--ok)}.pill.k-texts{background:var(--gold-soft);color:var(--gold)}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .pill.k-archives{background:#332c40;color:#c9b8ea}}
+:root[data-theme="dark"] .pill.k-archives{background:#332c40;color:#c9b8ea}
+button.pill{border:0;cursor:pointer;font:inherit;font-size:12px;padding:2px 9px}
+.pill.on{background:var(--ink);color:var(--bg)}
+.ctx{display:flex;gap:12px;align-items:flex-start;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:12px;margin:0 0 10px;box-shadow:var(--shadow);font-size:13.5px}
+.ctx img{width:68px;height:68px;object-fit:cover;border-radius:10px;flex:none}
+.ctx .ct{font:600 16px/1.3 var(--serif)}
+.ctx .ct span{font:500 12px var(--sans);color:var(--accent);background:var(--soft);border-radius:99px;padding:1px 8px;margin-left:4px;white-space:nowrap}
+.ctx p{margin:6px 0}
+.cline{display:flex;flex-wrap:wrap;gap:5px;align-items:center;font-size:12.5px;margin:0 0 10px}
+.cline b{font-weight:500;color:var(--muted);margin-right:2px}
+#dossBtn{margin-left:auto}
+.hist{display:flex;align-items:flex-end;gap:2px;height:100px;padding:12px 12px 0;overflow-x:auto}
+.hb{flex:1 0 10px;min-width:10px;height:100%;display:flex;flex-direction:column;justify-content:flex-end;align-items:center}
+.hb i{display:block;width:100%;background:var(--blue);border-radius:3px 3px 0 0;opacity:.7}
+.hb.ev i{background:var(--accent);opacity:1}
+.hb span{font-size:9.5px;color:var(--muted);height:15px;line-height:15px;white-space:nowrap;overflow:visible}
+.legend{font-size:12px;color:var(--muted);padding:6px 12px 8px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.sw{display:inline-block;width:10px;height:10px;border-radius:2px;background:var(--accent)}
+.ty{font:600 15px var(--serif);padding:10px 12px 2px}
+.ty.ev{color:var(--accent)}.ty span{font:500 11px var(--sans);background:var(--soft);border-radius:99px;padding:1px 7px;vertical-align:2px}
+.tl{display:flex;gap:8px;padding:5px 12px;align-items:flex-start}
+.tl .ti{width:20px;flex:none;text-align:center;line-height:1.4}
+.tl a{color:var(--ink);text-decoration:none;font-weight:500;font-size:14px;line-height:1.35}
+.tl a:hover{text-decoration:underline}
+.tl .note{margin-top:1px}
+.ta{display:flex;gap:2px;flex:none}
+.sech .ty2{margin-left:auto;color:var(--muted);font-weight:400;font-size:12px}
+.links .lg{display:flex;flex-wrap:wrap;gap:6px;align-items:center;width:100%;padding:3px 0}
+.links .lg>span{font-size:12.5px;color:var(--muted);min-width:150px}
+table.crit{width:100%;border-collapse:collapse;font-size:13.5px}
+.crit th{text-align:left;font-weight:500;color:var(--muted);padding:5px 12px 5px 0;vertical-align:top;white-space:nowrap;border-bottom:1px solid var(--line)}
+.crit td{padding:5px 0;border-bottom:1px solid var(--line)}
+ol.q{padding-left:20px;margin:6px 0 14px;font-size:13.5px}ol.q li{margin:5px 0}
 @media (max-width:560px){
   header small,.ib span{display:none}
   .card{padding:11px 10px}
@@ -141,6 +178,9 @@ footer{color:var(--muted);font-size:12px;text-align:center;padding:10px 16px cal
   .modes{gap:2px;padding:3px}
   .modes{grid-template-columns:repeat(3,1fr)}
   .modes button{padding:8px 2px;font-size:13px;gap:5px}
+  .modes button[data-m="history"]{grid-column:1/-1}
+  .links .lg>span{min-width:100%}
+  .ctx img{width:52px;height:52px}
   .more{gap:8px}
   .more .tgt{display:none}
   .more .focus{flex:1 1 100%}
@@ -168,6 +208,7 @@ footer{color:var(--muted);font-size:12px;text-align:center;padding:10px 16px cal
     <button data-m="mags"><i>🗞</i><span>Περιοδικά</span></button>
     <button data-m="articles"><i>🎓</i><span>Άρθρα</span></button>
     <button data-m="theses"><i>📜</i><span>Διατριβές</span></button>
+    <button data-m="history"><i>🏛</i><span>Ιστορία</span></button>
   </div>
   <form class="search" id="sf">
     <div class="qrow">
