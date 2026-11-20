@@ -442,6 +442,19 @@ const HTYPES = {archives: 'Αρχεία', declass: 'Αποχαρακτηρισμ
 const HPLURAL = {archives: 'αρχειακά τεκμήρια', declass: 'αποχαρακτηρισμένα έγγραφα', texts: 'πρωτογενή κείμενα', news: 'φύλλα τύπου', books: 'βιβλία', articles: 'μελέτες'};
 const HSING = {archives: 'αρχειακό τεκμήριο', declass: 'αποχαρακτηρισμένο έγγραφο', texts: 'πρωτογενές κείμενο', news: 'φύλλο τύπου', books: 'βιβλίο', articles: 'μελέτη'};
 const HICON = {archives: '🗄', declass: '🔓', texts: '📜', news: '📰', books: '📖', articles: '🎓'};
+const HSUBS = [['', '🏛 Όλα'], ['archives', '🗄 Αρχεία'], ['declass', '🔓 Αποχαρακτηρισμένα'], ['news', '📰 Τύπος εποχής'], ['texts', '📜 Πρωτογενή κείμενα'], ['lit', '📚 Βιβλιογραφία']];
+const HSUB_MSG = {'': 'αρχεία, αποχαρακτηρισμένα έγγραφα, τύπο της εποχής και βιβλιοθήκες', archives: 'αρχεία της Ευρώπης, των ΗΠΑ και της Βρετανίας', declass: 'αποχαρακτηρισμένα έγγραφα (Internet Archive, Βρετανικά Εθνικά Αρχεία)',
+  news: 'εφημερίδες της εποχής σε πολλές γλώσσες', texts: 'πρωτογενή κείμενα (Wikisource)', lit: 'βιβλία και επιστημονικές μελέτες'};
+const AGENCIES = {cia: 'CIA', fbi: 'FBI', state: 'State Department', nsa: 'NSA', mil: 'Στρατός · OSS', uk: 'Βρετανικές (MI5, SOE, FO)', east: 'KGB · Stasi'};
+const AGL = {cia: 'CIA', fbi: 'FBI', state: 'State Department', nsa: 'NSA', mil: 'Στρατιωτικές υπηρεσίες ΗΠΑ', uk: 'Βρετανικές υπηρεσίες', east: 'Υπηρεσίες Ανατολικού μπλοκ'};
+const agencyOf = t => /\bCIA\b|central intelligence/i.test(t) ? 'cia' : /\bFBI\b|federal bureau/i.test(t) ? 'fbi' : /\bNSA\b|national security agency/i.test(t) ? 'nsa'
+  : /state department|department of state|foreign relations of the united states|\bFRUS\b/i.test(t) ? 'state'
+  : /\bMI[56]\b|\bSOE\b|special operations executive|security service|foreign office|war office|\bGCHQ\b/i.test(t) ? 'uk'
+  : /\bKGB\b|\bStasi\b|\bNKVD\b|Securitate/i.test(t) ? 'east' : /\bOSS\b|office of strategic services|military intelligence|army intelligence|pentagon|defense intelligence/i.test(t) ? 'mil' : '';
+/* Χρονιά αποχαρακτηρισμού από σημειώσεις όπως «Approved For Release 2005/03/24» ή «Declassified 1998» */
+const relYear = (t, from) => { const m = String(t || '').match(/(?:approved\s+for\s+release|declassified|date\s+of\s+release|release\s+date|released|αποχαρακτηρ\S*)\D{0,25}?((?:19[4-9]|20[0-3])\d)(?!\d)/i);
+  const y = m ? +m[1] : 0; return y && (!from || y >= from) && y <= new Date().getFullYear() ? y : 0; };
+const pubOf = r => String(r.publication || r.title || '').split(/\s+[-–—]\s+(?=\d)|,\s*\d|\s+\(?\d{1,2}[./-]\d{1,2}[./-]\d|\s+\(?(?:1[5-9]|20)\d\d\b/)[0].trim().slice(0, 60);
 const HKIND = {archives: 'Αρχειακό τεκμήριο', declass: 'Αποχαρακτηρισμένο έγγραφο', texts: 'Πρωτογενές κείμενο', news: 'Δημοσίευμα τύπου', books: 'Βιβλίο', articles: 'Επιστημονική μελέτη'};
 const PRIMARY = new Set(['archives', 'declass', 'texts', 'news']);
 const yearOf = r => { const m = String(r.date || r.year || '').match(/(?<!\d)(1[0-9]\d\d|20\d\d)(?!\d)/); return m ? +m[1] : null; };
@@ -452,16 +465,30 @@ const wbUrl = u => `https://web.archive.org/web/2*/${u}`;
 const site = (d, t) => `https://www.google.com/search?q=${encodeURIComponent(`site:${d} ${t}`)}`;
 
 /* Βρετανικά Εθνικά Αρχεία (Discovery): περιγραφές φακέλων με ημερομηνίες και κωδικό αναφοράς */
+const tnaG = (x, k) => x?.[k] ?? x?.[k[0].toLowerCase() + k.slice(1)];
+function tnaRec(x){
+  const G = k => tnaG(x, k), id = G('Id'), desc = clean(G('Description')), held = [].concat(G('HeldBy') || [])[0];
+  return {id: 'tna-' + id, source: 'The National Archives (ΗΒ)', title: clean(G('Title')) || desc.slice(0, 140), abstract: desc.slice(0, 600),
+    date: String(G('CoveringDates') || ''), year: yearIn(G('StartDate') || G('CoveringDates')), reference: G('Reference') || '', released: yearIn(G('OpeningDate')),
+    heldBy: str(held) || held?.Name || '', country: 'gb', lang: 'en', subjects: [], kind: 'catalog', arch: true,
+    page: `https://discovery.nationalarchives.gov.uk/details/r/${encodeURIComponent(id)}`};
+}
 async function tna(term){
   const d = await getJSON('https://discovery.nationalarchives.gov.uk/API/search/records?' + qs({'sps.searchQuery': term, 'sps.resultsPageSize': 40}), 25000);
-  const G = (x, k) => x?.[k] ?? x?.[k[0].toLowerCase() + k.slice(1)];
-  return (G(d, 'Records') || []).map(x => {
-    const id = G(x, 'Id'), desc = clean(G(x, 'Description')), held = [].concat(G(x, 'HeldBy') || [])[0];
-    return {id: 'tna-' + id, source: 'The National Archives (ΗΒ)', title: clean(G(x, 'Title')) || desc.slice(0, 140), abstract: desc.slice(0, 600),
-      date: String(G(x, 'CoveringDates') || ''), year: yearIn(G(x, 'StartDate') || G(x, 'CoveringDates')), reference: G(x, 'Reference') || '',
-      heldBy: str(held) || held?.Name || '', country: 'gb', lang: 'en', subjects: [], kind: 'catalog', arch: true,
-      page: `https://discovery.nationalarchives.gov.uk/details/r/${encodeURIComponent(id)}`};
-  });
+  return (tnaG(d, 'Records') || []).map(tnaRec);
+}
+/* Βρετανικοί φάκελοι υπηρεσιών πληροφοριών και κυβέρνησης που άνοιξαν στο κοινό */
+const TNA_DEPT = [[/^KV\b/, 'MI5 (Security Service)'], [/^HS\b/, 'SOE'], [/^HW\b/, 'GCHQ · Bletchley Park'], [/^FO 1093\b/, 'Foreign Office · SIS (MI6)'], [/^FO 371\b/, 'Foreign Office'],
+  [/^WO 208\b/, 'Στρατιωτικές πληροφορίες'], [/^ADM 223\b/, 'Ναυτικές πληροφορίες'], [/^AIR 40\b/, 'Πληροφορίες RAF'], [/^CAB (?:81|158|159|163|176|301)\b/, 'Κοινή Επιτροπή Πληροφοριών (JIC)'],
+  [/^PREM\b/, 'Γραφείο Πρωθυπουργού'], [/^DEFE\b/, 'Υπουργείο Άμυνας']];
+const tnaDept = ref => (TNA_DEPT.find(([re]) => re.test(String(ref || '').trim())) || [])[1] || '';
+async function tnaDeclass(term){
+  const p = new URLSearchParams([['sps.searchQuery', term], ['sps.resultsPageSize', '100'], ...['KV', 'HS', 'HW', 'FO', 'WO', 'ADM', 'AIR', 'CAB', 'PREM', 'DEFE'].map(d => ['sps.departmentReferences', d])]);
+  const d = await getJSON('https://discovery.nationalarchives.gov.uk/API/search/records?' + p, 25000);
+  const rs = (tnaG(d, 'Records') || []).map(tnaRec).map(r => ({...r, note: tnaDept(r.reference), agency: 'uk'})).filter(r => r.note);
+  // η ημερομηνία ανοίγματος, όπου δεν ήρθε με την αναζήτηση, από την καρτέλα του φακέλου
+  await Promise.allSettled(rs.filter(r => !r.released).slice(0, 15).map(r => tnaDetails(r.id.slice(4)).then(x => { if (x.opened) r.released = x.opened; })));
+  return rs;
 }
 /* Library of Congress: χειρόγραφα και αρχειακό υλικό */
 async function locManuscripts(term){
@@ -492,18 +519,24 @@ async function europeanaArch(term, country){
   });
 }
 /* Internet Archive: αποχαρακτηρισμένα έγγραφα (FOIA, CIA, FBI, State Department, βρετανικές υπηρεσίες κ.ά.) */
-const DECL = '(declassified OR FOIA OR "freedom of information" OR CIA OR FBI OR NSA OR "state department" OR "national security" OR intelligence OR OSS OR MI5 OR MI6)';
-async function iaDeclass(term){
-  const q = `(title:(${term}) OR subject:(${term}) OR description:(${term})) AND mediatype:texts AND NOT access-restricted-item:true AND (subject:${DECL} OR title:${DECL} OR collection:(cia-collection OR nsia))`;
-  const d = await getJSON('https://archive.org/advancedsearch.php?' + new URLSearchParams([['q', q], ...['identifier', 'title', 'creator', 'date', 'year', 'subject', 'description', 'language'].map(f => ['fl[]', f]),
-    ['rows', '40'], ['sort[]', 'downloads desc'], ['output', 'json']]), 25000);
-  return (d.response?.docs || []).map(x => { const txt = [].concat(x.title || [], x.subject || [], x.creator || []).join(' ');
+const DECL = '(declassified OR FOIA OR "freedom of information" OR "approved for release" OR CIA OR FBI OR NSA OR "state department" OR "national security" OR intelligence OR OSS OR SOE OR MI5 OR MI6 OR KGB OR Stasi)';
+const AGQ = {cia: '(CIA OR "central intelligence")', fbi: '(FBI OR "federal bureau of investigation")', nsa: '(NSA OR "national security agency")',
+  state: '("state department" OR "department of state" OR "foreign relations of the united states" OR FRUS)',
+  mil: '(OSS OR "office of strategic services" OR "military intelligence" OR "army intelligence" OR pentagon OR "defense intelligence")',
+  uk: '(MI5 OR MI6 OR SOE OR "special operations executive" OR "security service" OR "foreign office" OR "war office")', east: '(KGB OR Stasi OR NKVD OR Securitate OR "soviet intelligence")'};
+const DOCQ = '(declassified OR FOIA OR "freedom of information" OR "approved for release" OR secret OR confidential OR memorandum OR cable OR telegram OR intelligence)';
+async function iaDeclass(term, ag = '', rows = 40){
+  const A = AGQ[ag], D = A ? `(subject:${A} OR title:${A} OR creator:${A}${ag === 'cia' ? ' OR collection:(cia-collection)' : ''}) AND (subject:${DOCQ} OR title:${DOCQ} OR collection:(cia-collection OR nsia))`
+    : `(subject:${DECL} OR title:${DECL} OR collection:(cia-collection OR nsia))`;
+  const q = `(title:(${term}) OR subject:(${term}) OR description:(${term})) AND mediatype:texts AND NOT access-restricted-item:true AND ${D}`;
+  const d = await getJSON('https://archive.org/advancedsearch.php?' + new URLSearchParams([['q', q], ...['identifier', 'title', 'creator', 'date', 'year', 'subject', 'description', 'language', 'collection'].map(f => ['fl[]', f]),
+    ['rows', String(rows)], ['sort[]', 'downloads desc'], ['output', 'json']]), 25000);
+  return (d.response?.docs || []).map(x => { const txt = [].concat(x.title || [], x.subject || [], x.creator || [], x.collection || []).join(' '), desc = [].concat(x.description || []).join(' ');
+    const yr = String(x.year || x.date || '').slice(0, 4), agency = agencyOf(txt) || ag;
     return {id: 'iad-' + x.identifier, source: 'Internet Archive', title: [].concat(x.title)[0] || '', author: [].concat(x.creator || []).join('; '),
-      date: String(x.date || x.year || '').slice(0, 10), year: String(x.year || x.date || '').slice(0, 4), lang: normLang(x.language),
-      subjects: [].concat(x.subject || []).slice(0, 20), abstract: clean([].concat(x.description || [])[0]).slice(0, 600),
-      heldBy: /\bCIA\b|central intelligence/i.test(txt) ? 'CIA' : /\bFBI\b|federal bureau/i.test(txt) ? 'FBI' : /\bNSA\b/.test(txt) ? 'NSA'
-        : /state department|department of state/i.test(txt) ? 'State Department' : /\bMI[56]\b|foreign office|war office/i.test(txt) ? 'Βρετανικές υπηρεσίες' : '',
-      country: /\bMI[56]\b|foreign office|war office|british/i.test(txt) ? 'gb' : /\bCIA\b|\bFBI\b|\bNSA\b|\bFOIA\b|\bOSS\b|state department|united states|pentagon/i.test(txt) ? 'us' : '',
+      date: String(x.date || x.year || '').slice(0, 10), year: yr, lang: normLang(x.language), subjects: [].concat(x.subject || []).slice(0, 20), abstract: clean(desc).slice(0, 600),
+      heldBy: AGL[agency] || '', agency, released: String(relYear(desc + ' ' + txt, +yr || 0) || ''),
+      country: agency === 'uk' ? 'gb' : agency === 'east' ? '' : agency || /\bFOIA\b|united states/i.test(txt) ? 'us' : '',
       kind: 'free', ext: 'pdf', ia: x.identifier, arch: true, page: `https://archive.org/details/${x.identifier}`}; });
 }
 /* Wikisource: πλήρη κείμενα πρωτογενών πηγών (συνθήκες, λόγοι, επιστολές, νόμοι) */
@@ -547,10 +580,21 @@ const ARCH_LINKS = T => { const E = encodeURIComponent; return [
   ['ru', 'Σοβιετικά έγγραφα (sovdoc)', site('sovdoc.rusarchives.ru', T.ru)], ['il', 'Κρατικά Αρχεία Ισραήλ', site('archives.gov.il', T.en)],
   ['ca', 'Αρχεία Καναδά', site('bac-lac.gc.ca', T.en)], ['au', 'Εθνικά Αρχεία Αυστραλίας', site('naa.gov.au', T.en)]]; };
 
+const DECL_LINKS = T => { const E = encodeURIComponent; return [
+  ['us', 'CIA Reading Room (CREST)', `https://www.cia.gov/readingroom/search/site/${E(T.en)}`], ['us', 'FBI Vault', `https://vault.fbi.gov/search?SearchableText=${E(T.en)}`],
+  ['us', 'FRUS (State Department)', `https://history.state.gov/search?q=${E(T.en)}`], ['us', 'Εθνικά Αρχεία ΗΠΑ (NARA)', `https://catalog.archives.gov/search?q=${E(T.en)}`],
+  ['us', 'National Security Archive', site('nsarchive.gwu.edu', T.en)], ['us', 'NSA (αποχαρακτηρισμένα)', site('nsa.gov', T.en + ' declassified')],
+  ['us', 'The Black Vault (FOIA)', `https://www.theblackvault.com/documentarchive/?s=${E(T.en)}`], ['us', 'MuckRock (αιτήματα FOIA)', `https://www.muckrock.com/foi/list/?q=${E(T.en)}`],
+  ['us', 'DocumentCloud', `https://www.documentcloud.org/app?q=${E(T.en)}`], ['gb', 'The National Archives', `https://discovery.nationalarchives.gov.uk/results/r?_q=${E(T.en)}`],
+  ['int', 'Wilson Center Digital Archive', site('digitalarchive.wilsoncenter.org', T.en)], ['int', 'Αρχεία ΝΑΤΟ', site('archives.nato.int', T.en)],
+  ['de', 'Αρχείο Stasi', site('stasi-unterlagen-archiv.de', T.de)], ['ru', 'Σοβιετικά έγγραφα (sovdoc)', site('sovdoc.rusarchives.ru', T.ru)],
+  ['gr', 'Ιστορικό Αρχείο ΥΠΕΞ', site('mfa.gr', T.el)], ['gr', 'Γενικά Αρχεία του Κράτους', site('gak.gr', T.el)]]; };
+
 // ───────────── ένωση αποτελεσμάτων ─────────────
 const surname = a => { a = String(a || '').split(/;|,\s(?=[A-ZΑ-Ω][a-zα-ω]+\s[A-ZΑ-Ω])/)[0]; if (a.includes(',')) return a.split(',')[0].trim(); const p = a.match(/[\p{L}'’-]+/gu) || []; return p.at(-1) || ''; };
 function key(r){
   if (r.doi) return 'doi:' + r.doi;
+  if (r.eu) return 'eu:' + r.eu;   // το ίδιο τεκμήριο της Europeana, όποια αναζήτηση κι αν το έφερε
   const t = plain(String(r.title || r.publication).split(/\s[:;/]\s|\s[-–—]\s|\(/)[0]).match(/[\p{L}\p{N}]+/gu)?.filter(w => !STOPW.has(w)).slice(0, 8).join(' ') || r.id;
   return r.press || r.arch ? r.id : t + '|' + plain(surname(r.author)).slice(0, 5);   // αρχειακοί φάκελοι με ίδιο τίτλο είναι διαφορετικά τεκμήρια
 }
@@ -583,7 +627,7 @@ async function runAll(jobs){
   return {out, stats, errs};
 }
 async function search(text){
-  state.cty = '';
+  state.cty = ''; state.sub = state.mode === 'history' ? state.hsub || '' : ''; state.agq = state.sub === 'declass' ? state.hag || '' : '';
   if (state.mode === 'history') return searchHistory(text);
   const focus = $('#focus').value.trim(), rel = $('#rel').value;
   let y1 = +$('#y1').value || null, y2 = +$('#y2').value || null;
@@ -659,7 +703,8 @@ async function searchHistory(text){
   const focus = $('#focus').value.trim(), rel = $('#rel').value;
   let y1 = +$('#y1').value || null, y2 = +$('#y2').value || null;
   setBusy(true);
-  $('#out').innerHTML = '<p class="msg"><span class="spin"></span>Ψάχνω σε αρχεία, αποχαρακτηρισμένα έγγραφα, τύπο της εποχής και βιβλιοθήκες…</p>';
+  const sub = state.sub || '', ag = state.agq || '', deep = !!sub;
+  $('#out').innerHTML = `<p class="msg"><span class="spin"></span>Ψάχνω σε ${HSUB_MSG[sub] || HSUB_MSG['']}${ag ? ' · ' + esc(AGENCIES[ag]) : ''}…</p>`;
   try {
     const u = await understand(text);
     const [ctx, fv] = await Promise.all([u.qids?.length ? histContext(u.qids[0]).catch(() => null) : null, focusVariants(focus)]);
@@ -672,21 +717,33 @@ async function searchHistory(text){
     const T = {en, el: el || en, fr: u.byLang.fr || L.fr || en, de: u.byLang.de || L.de || en, it: u.byLang.it || L.it || en, ru: L.ru || en, tr: L.tr || en};
     const fl = l => fv.length ? ' ' + (fv.find(v => (l === 'el') === /[Ͱ-Ͽ]/.test(v)) || fv[0]) : '';
     const p1 = y1 ? y1 - 1 : null, p2 = y1 ? (y2 || y1) + 2 : null;   // τύπος: λίγο πριν και λίγο μετά το γεγονός
-    const jobs = [], J = (k, name, p) => jobs.push([name, p.then(r => r.map(x => ({...x, t: k})))]);
-    J('archives', 'Εθνικά Αρχεία ΗΒ', tna(en + fl('en')));
-    J('archives', 'Library of Congress', locManuscripts(en + fl('en')));
-    J('archives', 'Europeana', europeanaArch(en + fl('en')));
-    if (plain(T.de) !== plain(en)) J('archives', 'Europeana', europeanaArch(T.de + fl('de')));
-    if (el) J('archives', 'Ελληνικά αρχεία (Europeana)', europeanaArch(el + fl('el'), 'greece'));
-    J('declass', 'Αποχαρακτηρισμένα (Internet Archive)', iaDeclass(en + fl('en')));
-    J('texts', 'Wikisource', wikisource(en + fl('en'), 'en')); if (el) J('texts', 'Wikisource', wikisource(el + fl('el'), 'el'));
-    J('news', 'Internet Archive', pressArchive(en + fl('en'), p1, p2, true)); J('news', 'Gallica', pressGallica(T.fr + fl('fr'), p1, p2, true));
-    J('news', 'Europeana', pressEuropeana(en + fl('en'), p1, p2)); if (!y1 || y1 <= 1963) J('news', 'Chronicling America', chronAm(en + fl('en'), p1, p2));
-    if (el) J('news', 'Ελληνικός τύπος (Europeana)', europeana(el, 'el', [['theme', 'newspaper'], ['qf', 'COUNTRY:greece']])
+    const want = k => !sub || k === sub || (sub === 'lit' && (k === 'books' || k === 'articles'));
+    const jobs = [], J = (k, name, f) => { if (want(k)) jobs.push([name, f().then(r => r.map(x => ({...x, t: k})))]); };
+    const xl = deep ? [['fr', T.fr], ['de', T.de], ['it', T.it]].filter(([, t]) => plain(t) !== plain(en) && plain(t) !== plain(el)) : [];   // στις υποκατηγορίες ψάχνω και σε άλλες γλώσσες
+    J('archives', 'Εθνικά Αρχεία ΗΒ', () => tna(en + fl('en')));
+    J('archives', 'Library of Congress', () => locManuscripts(en + fl('en')));
+    J('archives', 'Europeana', () => europeanaArch(en + fl('en')));
+    if (plain(T.de) !== plain(en)) J('archives', 'Europeana', () => europeanaArch(T.de + fl('de')));
+    xl.filter(([l]) => l !== 'de').forEach(([l, t]) => J('archives', 'Europeana', () => europeanaArch(t + fl(l))));
+    if (el) J('archives', 'Ελληνικά αρχεία (Europeana)', () => europeanaArch(el + fl('el'), 'greece'));
+    J('declass', 'Αποχαρακτηρισμένα (Internet Archive)', () => iaDeclass(en + fl('en'), ag, deep ? 100 : 40));
+    if (deep){
+      if (el) J('declass', 'Αποχαρακτηρισμένα (Internet Archive)', () => iaDeclass(el + fl('el'), ag, 40));
+      xl.forEach(([l, t]) => J('declass', 'Αποχαρακτηρισμένα (Internet Archive)', () => iaDeclass(t + fl(l), ag, 30)));
+      if (!ag || ag === 'uk') J('declass', 'Εθνικά Αρχεία ΗΒ (MI5, SOE, FO…)', () => tnaDeclass(en + fl('en')));
+    }
+    J('texts', 'Wikisource', () => wikisource(en + fl('en'), 'en')); if (el) J('texts', 'Wikisource', () => wikisource(el + fl('el'), 'el'));
+    xl.forEach(([l, t]) => J('texts', 'Wikisource', () => wikisource(t + fl(l), l)));
+    J('news', 'Internet Archive', () => pressArchive(en + fl('en'), p1, p2, true)); J('news', 'Gallica', () => pressGallica(T.fr + fl('fr'), p1, p2, true));
+    J('news', 'Europeana', () => pressEuropeana(en + fl('en'), p1, p2)); if (!y1 || y1 <= 1963) J('news', 'Chronicling America', () => chronAm(en + fl('en'), p1, p2));
+    if (deep){ xl.filter(([l]) => l !== 'fr').forEach(([l, t]) => J('news', 'Europeana', () => pressEuropeana(t + fl(l), p1, p2)));
+      if (el) J('news', 'Internet Archive', () => pressArchive(el + fl('el'), p1, p2, true)); }
+    if (el) J('news', 'Ελληνικός τύπος (Europeana)', () => europeana(el, 'el', [['theme', 'newspaper'], ['qf', 'COUNTRY:greece']])
       .then(r => r.map(x => ({...x, publication: x.title, date: x.year, country: 'gr', press: true}))));
-    J('books', 'Internet Archive', archive(en + fl('en'), 'en')); J('books', 'Open Library', openlibrary(en, 'en'));
-    if (el){ J('books', 'Internet Archive', archive(el + fl('el'), 'el')); J('books', 'Open Library', openlibrary(el, 'el')); }
-    J('articles', 'OpenAlex', openalex(en + fl('en'), null, null)); if (el) J('articles', 'OpenAlex', openalex(el + fl('el'), null, null));
+    J('books', 'Internet Archive', () => archive(en + fl('en'), 'en')); J('books', 'Open Library', () => openlibrary(en, 'en'));
+    if (el){ J('books', 'Internet Archive', () => archive(el + fl('el'), 'el')); J('books', 'Open Library', () => openlibrary(el, 'el')); }
+    xl.forEach(([l, t]) => J('books', 'Internet Archive', () => archive(t + fl(l), l)));
+    J('articles', 'OpenAlex', () => openalex(en + fl('en'), null, null)); if (el) J('articles', 'OpenAlex', () => openalex(el + fl('el'), null, null));
     const {out, stats, errs} = await runAll(jobs);
     const terms = [...new Map([['el', el], ['en', en], ['fr', T.fr], ['de', T.de]].filter(([, t]) => t).map(([l, t]) => [plain(t), [l, t]])).values()];
     const qg = (u.groups || [{w: 1, v: [...terms.map(([, t]) => t), ...u.concepts]}]).map((g, i) => i ? g : {...g, v: [...g.v, ...Object.values(L)]});
@@ -706,9 +763,9 @@ async function searchHistory(text){
       }
       res.push(...rs);
     }
-    Object.assign(state, {results: res, view: 'all', tf: '', cat: '', lang: '', cty: '', shown: 30, q: text, hview: state.hview || 'list',
-      ctx: {...(ctx || {}), y1, y2, auto, topic: ctx?.label || u.topic}, links: ARCH_LINKS(T)});
-    const rc = {u, stats, errs, dropped, relaxed, focus, fv, y1, y2, terms};
+    Object.assign(state, {results: res, view: 'all', tf: sub && sub !== 'lit' ? sub : '', ag: '', pub: '', cat: '', lang: '', cty: '', shown: 30, q: text, hview: state.hview || 'list',
+      ctx: {...(ctx || {}), y1, y2, auto, topic: ctx?.label || u.topic}, links: sub === 'declass' ? DECL_LINKS(T) : ARCH_LINKS(T)});
+    const rc = {u, stats, errs, dropped, relaxed, focus, fv, y1, y2, terms, sub, ag};
     render(rc); snapshot(rc);
   } catch (e) {
     $('#out').innerHTML = `<p class="msg note err">Κάτι πήγε στραβά: ${esc(e.message)}. Έλεγξε τη σύνδεση και ξαναδοκίμασε.</p>`;
@@ -753,7 +810,7 @@ const TICON = {books: '📖', news: '📰', mags: '🗞', articles: '🎓', thes
 const anyCard = r => (r.press ? pcard : r.arch ? acard : card)(r);
 function visible(){
   return state.results.filter(r => (!state.tf || r.t === state.tf) && (state.view === 'all' || r.kind === state.view) && (!state.cat || r.category === state.cat)
-    && (!state.lang || r.lang === state.lang) && (!state.cty || r.country === state.cty));
+    && (!state.lang || r.lang === state.lang) && (!state.cty || r.country === state.cty) && (!state.ag || r.agency === state.ag) && (!state.pub || pubOf(r) === state.pub));
 }
 function drawList(){
   const box = $('#res'); if (!box) return;
@@ -825,7 +882,7 @@ function pcard(r){
 /* Κάρτα αρχειακού τεκμηρίου / αποχαρακτηρισμένου εγγράφου / πρωτογενούς κειμένου */
 function acard(r){
   const badge = {archives: 'ΑΡΧ', declass: 'ΑΠΧ', texts: 'ΚΕΙΜ'}[r.t] || 'ΑΡΧ';
-  const meta = [r.date || r.year, r.heldBy && r.heldBy !== r.source ? r.heldBy : '', r.reference, r.source, r.note].filter(Boolean).map(esc).join(' · ');
+  const meta = [r.date || r.year, r.released ? 'δημοσιοποίηση ' + r.released : '', r.heldBy && r.heldBy !== r.source ? r.heldBy : '', r.reference, r.source, r.note].filter(Boolean).map(esc).join(' · ');
   const relb = r.level && r.level !== 'none' ? `<span class="rel ${r.level}" title="${esc((r.why || []).join(' · '))}">${r.level === 'high' ? '●●● πολύ σχετικό' : r.level === 'medium' ? '●● σχετικό' : '● λίγο σχετικό'}</span>` : '';
   const u = r.read || r.page;
   let act = r.ia ? `<button class="btn pri" data-dl="${esc(r.id)}">↓ PDF</button>` : '';
@@ -840,7 +897,7 @@ function acard(r){
 }
 /* Σύντομη γραμμή για χρονολόγιο και προβολή ανά χώρα */
 function trow(r){
-  const meta = [r.date || r.year, r.press ? r.place : r.heldBy, r.source, r.country && cname(r.country)].filter(Boolean).map(esc).join(' · ');
+  const meta = [r.date || r.year, r.released ? 'δημοσιοποίηση ' + r.released : '', r.press ? r.place : r.heldBy, r.source, r.country && cname(r.country)].filter(Boolean).map(esc).join(' · ');
   return `<div class="tl"><span class="ti" title="${esc(HKIND[r.t] || '')}">${HICON[r.t] || '•'}</span><div class="info"><a href="${esc(r.read || r.page)}" target="_blank" rel="noopener">${esc(r.title || r.publication)}</a>
     <div class="note">${meta}</div></div><div class="ta"><button class="cp" data-crit="${esc(r.id)}" title="Κριτική πηγής">🔍</button><button class="cp" data-add="${esc(r.id)}" title="Προσθήκη σε λίστα">＋</button></div></div>`;
 }
@@ -857,8 +914,26 @@ function countriesLine(){
 }
 function archLinksHtml(){
   const g = {}; state.links.forEach(([c, n, u]) => (g[c] = g[c] || []).push([n, u]));
-  return `<div class="links"><b>Ψάξε απευθείας στα αρχεία κάθε χώρας (ανοίγουν σε νέα καρτέλα):</b>${Object.entries(g).map(([c, ls]) =>
+  return `<div class="links"><b>${state.sub === 'declass' ? 'Ψάξε απευθείας σε αρχεία αποχαρακτηρισμένων εγγράφων' : 'Ψάξε απευθείας στα αρχεία κάθε χώρας'} (ανοίγουν σε νέα καρτέλα):</b>${Object.entries(g).map(([c, ls]) =>
     `<div class="lg"><span>${cflag(c)} ${esc(cname(c))}</span>${ls.map(([n, u]) => `<a class="btn" href="${esc(u)}" target="_blank" rel="noopener">${esc(n)} ↗</a>`).join('')}</div>`).join('')}</div>`;
+}
+/* Για κάθε έγγραφο με γνωστή ημερομηνία δημοσιοποίησης: πότε γράφτηκε και πότε δόθηκε στη δημοσιότητα */
+function releaseChart(items){
+  const R = items.map(r => [yearOf(r), +r.released || 0, r]).filter(([w, d]) => w && d && d >= w).sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+  if (!R.length) return '';
+  const lo = Math.min(...R.map(x => x[0])), hi = Math.max(...R.map(x => x[1])), pad = Math.max(1, Math.round((hi - lo) * .04)), a = lo - pad, b = hi + pad;
+  const X = y => +((y - a) / (b - a) * 100).toFixed(2), span = b - a, st = span <= 12 ? 2 : span <= 30 ? 5 : span <= 80 ? 10 : span <= 200 ? 25 : 50;
+  const ticks = []; for (let t = Math.ceil(a / st) * st; t <= b; t += st) ticks.push(t);
+  const gaps = R.map(x => x[1] - x[0]).sort((p, q) => p - q), med = gaps[Math.floor(gaps.length / 2)], N = 60;
+  const yrs = n => n === 1 ? '1 χρόνο' : n + ' χρόνια';
+  const rows = R.slice(0, N).map(([w, d, r]) => { const t = r.title || r.publication || '';
+    return `<a class="rrow" href="${esc(r.read || r.page)}" target="_blank" rel="noopener" title="${esc(t)}
+Γράφτηκε ${w} · δημοσιοποιήθηκε ${d} (${d === w ? 'την ίδια χρονιά' : yrs(d - w) + ' μετά'})">
+      <span class="rl">${esc(t)}</span><span class="rt"><i class="rline" style="left:${X(w)}%;width:${X(d) - X(w)}%"></i><i class="rdot w" style="left:${X(w)}%"></i><i class="rdot d" style="left:${X(d)}%"></i></span>
+      <span class="ry">${w} → ${d}</span></a>`; }).join('');
+  return `<div class="relc"><div class="relh"><b>Πότε γράφτηκε και πότε δόθηκε στη δημοσιότητα</b><span class="lg"><i class="rdot w"></i>γράφτηκε<i class="rdot d"></i>δημοσιοποιήθηκε</span></div>
+    <div class="note">${R.length === 1 ? '1 έγγραφο' : R.length + ' έγγραφα'} με γνωστή ημερομηνία αποχαρακτηρισμού ή ανοίγματος${R.length > 1 ? ` · διάμεσος χρόνος μέχρι τη δημοσιοποίηση: ${yrs(med)}` : ''}${R.length > N ? ` · δείχνω τα πρώτα ${N}` : ''}</div>
+    ${rows}<div class="raxis"><span class="rl"></span><span class="rt">${ticks.map(t => `<span style="left:${X(t)}%">${t}</span>`).join('')}</span><span></span></div></div>`;
 }
 function timelineHTML(items){
   const dated = items.map(r => [yearOf(r), r]).filter(([y]) => y).sort((a, b) => a[0] - b[0] || String(a[1].date || '').localeCompare(String(b[1].date || '')));
@@ -872,7 +947,7 @@ function timelineHTML(items){
   const hist = `<div class="hist">${keys.map((b, i) => `<div class="hb${inEv(b) ? ' ev' : ''}" title="${b}${step > 1 ? '–' + (b + step - 1) : ''}: ${bins[b] || 0} πηγές"><i style="height:${bins[b] ? Math.max(6, Math.round(bins[b] / max * 100)) : 0}%"></i><span>${i % every ? '' : b}</span></div>`).join('')}</div>`;
   let html = '', last = null;
   for (const [y, r] of dated.slice(0, state.shown)){ if (y !== last){ html += `<div class="ty${inEv(y, 1) ? ' ev' : ''}">${y}${inEv(y, 1) ? ' <span>γεγονός</span>' : ''}</div>`; last = y; } html += trow(r); }
-  return `${hist}<div class="legend">${e1 ? '<span class="sw"></span> η περίοδος του γεγονότος · ' : ''}${dated.length} πηγές με χρονολογία${und ? `, ${und} χωρίς (στον «Κατάλογο»)` : ''}</div>${html}` +
+  return `${releaseChart(items)}${hist}<div class="legend">${e1 ? '<span class="sw"></span> η περίοδος του γεγονότος · ' : ''}${dated.length} πηγές με χρονολογία${und ? `, ${und} χωρίς (στον «Κατάλογο»)` : ''}</div>${html}` +
     (dated.length > state.shown ? `<button class="morebtn" id="moreBtn">Δείξε περισσότερα (${dated.length - state.shown})</button>` : '');
 }
 function countryHTML(items){
@@ -892,6 +967,13 @@ function drawHistory(box){
   const seg = `<div class="seg">${['', ...Object.keys(HTYPES)].filter(k => !k || tc(k)).map(k => `<button data-tf="${k}" class="${state.tf === k ? 'on' : ''}">${k ? HICON[k] + ' ' + HTYPES[k] : 'Όλα'} (${k ? tc(k) : all.length})</button>`).join('')}</div>`;
   const langsel = langs.length > 1 ? `<select id="fl"><option value="">Όλες οι γλώσσες</option>${langs.map(l => `<option value="${l}" ${l === state.lang ? 'selected' : ''}>${esc(LANGS[l] || l)}</option>`).join('')}</select>` : '';
   const cty = state.cty ? `<button class="pill on" data-cty="" title="Κατάργηση φίλτρου">${cflag(state.cty)} ${esc(cname(state.cty))} ✕</button>` : '';
+  const dcl = all.filter(r => r.t === 'declass'), nws = all.filter(r => r.t === 'news');
+  const ags = state.tf === 'declass' ? [...new Set(dcl.map(r => r.agency).filter(Boolean))] : [];
+  const pubs = state.tf === 'news' ? Object.entries(nws.reduce((o, r) => { const p = pubOf(r); if (p) o[p] = (o[p] || 0) + 1; return o; }, {})).sort((a, b) => b[1] - a[1]).slice(0, 12) : [];
+  const subf = ags.length > 1 ? `<div class="bar subf"><span class="note">Υπηρεσία:</span>${['', ...ags].map(a => `<button class="pill${(state.ag || '') === a ? ' on' : ''}" data-ag="${a}">${a ? esc(AGENCIES[a]) : 'Όλες'} (${a ? dcl.filter(r => r.agency === a).length : dcl.length})</button>`).join('')}</div>`
+    : pubs.length > 1 ? `<div class="bar subf"><span class="note">Εφημερίδα:</span>${[['', nws.length], ...pubs].map(([p, n]) => `<button class="pill${(state.pub || '') === p ? ' on' : ''}" data-pub="${esc(p)}">${p ? esc(p) : 'Όλες'} (${n})</button>`).join('')}</div>` : '';
+  const relN = vis.filter(r => r.released && yearOf(r)).length;
+  const hint = state.hview !== 'time' && relN ? `<div class="note hint">🕰 Για ${relN === 1 ? '1 έγγραφο' : relN + ' έγγραφα'} ξέρω και πότε δόθηκαν στη δημοσιότητα — <button class="cp" data-hv="time">δες τα στο Χρονολόγιο</button></div>` : '';
   let body;
   if (state.hview === 'time') body = timelineHTML(vis);
   else if (state.hview === 'country') body = countryHTML(vis);
@@ -899,9 +981,11 @@ function drawHistory(box){
     return `<div class="sec"><div class="sech">${HICON[k]} ${HTYPES[k]} <span>${g.length}</span>${g.length > 5 ? `<button data-tf="${k}">Δες όλα →</button>` : ''}</div>${g.slice(0, 5).map(anyCard).join('')}</div>`; }).join('') || '<div class="empty">Τίποτα σε αυτό το φίλτρο.</div>';
   else body = `<div id="cards">${vis.slice(0, state.shown).map(anyCard).join('') || '<div class="empty">Τίποτα σε αυτό το φίλτρο.</div>'}</div>${vis.length > state.shown ? `<button class="morebtn" id="moreBtn">Δείξε περισσότερα (${vis.length - state.shown})</button>` : ''}`;
   box.innerHTML = `<div class="box"><div class="bar">${hv}${SUMBTN}<button class="btn" id="dossBtn" title="Όσα βλέπεις, σε ένα αρχείο κειμένου (.md) για NotebookLM, Word ή σημειώσεις">⤓ Φάκελος έρευνας</button></div>
-    <div class="bar">${seg}${langsel}${cty}</div>${body}</div>`;
+    <div class="bar">${seg}${langsel}${cty}</div>${subf}${hint}${body}</div>`;
   box.querySelectorAll('[data-hv]').forEach(b => b.onclick = () => { state.hview = b.dataset.hv; state.shown = state.hview === 'time' ? 80 : 30; drawList(); });
-  box.querySelectorAll('[data-tf]').forEach(b => b.onclick = () => { state.tf = b.dataset.tf; state.shown = 30; if (state.tf && state.hview !== 'list') state.hview = 'list'; drawList(); if (state.tf) box.scrollIntoView({behavior: 'smooth', block: 'start'}); });
+  box.querySelectorAll('[data-tf]').forEach(b => b.onclick = () => { state.tf = b.dataset.tf; state.ag = ''; state.pub = ''; state.shown = state.hview === 'time' ? 80 : 30; if (state.tf && state.hview === 'country') state.hview = 'list'; drawList(); if (state.tf) box.scrollIntoView({behavior: 'smooth', block: 'start'}); });
+  box.querySelectorAll('[data-ag]').forEach(b => b.onclick = () => { state.ag = b.dataset.ag; state.shown = 30; drawList(); });
+  box.querySelectorAll('[data-pub]').forEach(b => b.onclick = () => { state.pub = b.dataset.pub; state.shown = 30; drawList(); });
   $('#fl') && ($('#fl').onchange = e => { state.lang = e.target.value; state.shown = 30; drawList(); });
   $('#moreBtn') && ($('#moreBtn').onclick = () => { state.shown += state.hview === 'time' ? 80 : 30; drawList(); });
   $('#dossBtn').onclick = () => { const t = state.ctx?.topic || state.q; saveFile(`Fakelos - ${String(t).slice(0, 60)}.md`, dossierMD(t, visible(), state.ctx), 'text/markdown'); toast('Ο φάκελος κατέβηκε'); };
@@ -1213,8 +1297,8 @@ async function tnaDetails(id){
   const sc = G('scopeContent'), held = [].concat(G('heldBy') || [])[0];
   const desc = [sc?.description ?? sc?.Description ?? sc, G('administrativeBackground'), G('arrangement')].map(x => clean(typeof x === 'string' ? x : '')).filter(Boolean);
   const meta = [['Κωδικός', G('citableReference')], ['Χρονολογία', G('coveringDates')], ['Έκταση', [G('physicalDescriptionExtent'), G('physicalDescriptionForm')].filter(Boolean).join(' ')],
-    ['Φορέας', held?.xReferenceName || held?.XReferenceName || str(held)]].map(([l, v]) => [l, clean(typeof v === 'string' ? v : '')]).filter(([, v]) => v);
-  return {desc, meta};
+    ['Άνοιξε στο κοινό', G('recordOpeningDate')], ['Φορέας', held?.xReferenceName || held?.XReferenceName || str(held)]].map(([l, v]) => [l, clean(typeof v === 'string' ? v : '')]).filter(([, v]) => v);
+  return {desc, meta, opened: yearIn(G('recordOpeningDate'))};
 }
 /* Ό,τι κείμενο υπάρχει για ένα εύρημα: περίληψη/περιγραφή, TLDR, και πλήρες κείμενο όπου διατίθεται ελεύθερα */
 async function gatherText(r){
@@ -1325,22 +1409,24 @@ const lsDel = k => { try { localStorage.removeItem(k); } catch (e) {} };
 const lsGet = k => { try { return localStorage.getItem(k); } catch (e) { return null; } };
 const packR = r => { const o = {...r}; delete o._text; if (o.subjects?.length > 12) o.subjects = o.subjects.slice(0, 12); return o; };
 const hwhen = t => new Date(t).toLocaleString('el-GR', {day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit'});
-const hashOf = (q, m) => '#' + new URLSearchParams({q, m});
+const hashOf = (q, m, s, a) => '#' + new URLSearchParams({q, m, ...(s ? {s} : {}), ...(a ? {a} : {})});
+const subLabel = x => (x.sub ? ' › ' + (HSUBS.find(h => h[0] === x.sub)?.[1] || x.sub) : '') + (x.ag ? ' · ' + (AGENCIES[x.ag] || x.ag) : '');
+const sameSearch = (x, q, m, s, a) => x.q === q && (!m || x.mode === m) && (x.sub || '') === (s || '') && (x.ag || '') === (a || '');
 /* Μετά από κάθε νέα αναζήτηση: γραμμή στο ιστορικό + αποθήκευση των αποτελεσμάτων στη συσκευή */
 function snapshot(rctx){
   let H = histList();
-  const old = H.filter(x => x.q === state.q && x.mode === state.mode); old.forEach(x => lsDel(SKEY(x.id)));
+  const old = H.filter(x => sameSearch(x, state.q, state.mode, state.sub, state.agq)); old.forEach(x => lsDel(SKEY(x.id)));
   const now = Date.now(), id = 's' + now.toString(36);
   Object.assign(state, {sid: id, rctx});
-  H = [{id, q: state.q, mode: state.mode, t: now, n: state.results.length, focus: $('#focus').value.trim(), y1: $('#y1').value.trim(), y2: $('#y2').value.trim()},
+  H = [{id, q: state.q, mode: state.mode, sub: state.sub || '', ag: state.agq || '', t: now, n: state.results.length, focus: $('#focus').value.trim(), y1: $('#y1').value.trim(), y2: $('#y2').value.trim()},
     ...H.filter(x => !old.includes(x))].slice(0, 40);
   lsSet(HKEY, JSON.stringify(H));
   writeSnap();
-  try { if (location.hash !== hashOf(state.q, state.mode)) history.pushState({sid: id}, '', hashOf(state.q, state.mode)); } catch (e) {}
+  const hh = hashOf(state.q, state.mode, state.sub, state.agq); try { if (location.hash !== hh) history.pushState({sid: id}, '', hh); } catch (e) {}
 }
 function writeSnap(){
   if (!state.sid) return;
-  const snap = JSON.stringify({id: state.sid, q: state.q, mode: state.mode, t: Date.now(), results: state.results.map(packR), links: state.links, ctx: state.ctx || null,
+  const snap = JSON.stringify({id: state.sid, q: state.q, mode: state.mode, sub: state.sub || '', ag: state.agq || '', t: Date.now(), results: state.results.map(packR), links: state.links, ctx: state.ctx || null,
     rctx: state.rctx, qterms: state.qterms || [], view: state.view, hview: state.hview, focus: $('#focus').value, y1: $('#y1').value, y2: $('#y2').value, rel: $('#rel').value});
   const H = histList();
   H.slice(KEEP_SNAPS).forEach(x => { if (x.id !== state.sid) lsDel(SKEY(x.id)); });
@@ -1358,25 +1444,26 @@ document.addEventListener('visibilitychange', () => { if (document.visibilitySta
 function restoreSnap(id, push){
   let s = null; try { s = JSON.parse(lsGet(SKEY(id)) || 'null'); } catch (e) {}
   if (!s?.results || !s.rctx) return false;
+  Object.assign(state, {hsub: s.sub || '', hag: s.ag || '', sub: s.sub || '', agq: s.ag || ''});
   setMode(MODES[s.mode] ? s.mode : 'all', true);
   $('#q').value = s.q; $('#focus').value = s.focus || ''; $('#y1').value = s.y1 || ''; $('#y2').value = s.y2 || ''; if (s.rel) $('#rel').value = s.rel;
   Object.assign(state, {results: s.results, links: s.links || [], ctx: s.ctx, q: s.q, sid: s.id, rctx: s.rctx, qterms: s.qterms || [], view: s.view || 'all',
-    hview: s.hview || 'list', tf: '', cat: '', lang: '', cty: '', shown: 30});
+    hview: s.hview || 'list', tf: s.sub && s.sub !== 'lit' ? s.sub : '', ag: '', pub: '', cat: '', lang: '', cty: '', shown: 30});
   render(s.rctx);
   $('#out').insertAdjacentHTML('afterbegin', `<div class="restored">🕘 Αποθηκευμένα αποτελέσματα · ${esc(hwhen(s.t))}<button class="btn" id="rerun">⟳ Ψάξε ξανά τώρα</button></div>`);
   $('#rerun').onclick = () => search(s.q);
   lsSet('vv_cur', s.id);
-  if (push) try { history.pushState({sid: s.id}, '', hashOf(s.q, s.mode)); } catch (e) {}
+  if (push) try { history.pushState({sid: s.id}, '', hashOf(s.q, s.mode, s.sub, s.ag)); } catch (e) {}
   return true;
 }
-function rerun(x){ setMode(MODES[x.mode] ? x.mode : 'all', true); $('#q').value = x.q; $('#focus').value = x.focus || ''; $('#y1').value = x.y1 || ''; $('#y2').value = x.y2 || ''; search(x.q); }
+function rerun(x){ state.hsub = x.sub || ''; state.hag = x.ag || ''; setMode(MODES[x.mode] ? x.mode : 'all', true); $('#q').value = x.q; $('#focus').value = x.focus || ''; $('#y1').value = x.y1 || ''; $('#y2').value = x.y2 || ''; search(x.q); }
 function openHist(id){ const x = histList().find(e => e.id === id); if (!x) return; if (dlg.open) dlg.close(); if (!restoreSnap(id, true)) rerun(x); window.scrollTo({top: 0, behavior: 'smooth'}); }
 function dlgHistory(){
   const H = histList();
   $('#dlgBody').innerHTML = `<button class="x" onclick="dlg.close()">✕</button><h3>🕘 Ιστορικό αναζητήσεων</h3>
     <p class="note">Μένει μόνο σε αυτή τη συσκευή. Οι ${KEEP_SNAPS} πιο πρόσφατες ανοίγουν αμέσως, μαζί με τα αποτελέσματα και τις περιλήψεις τους· οι παλαιότερες ξανατρέχουν.</p>
-    ${H.map(x => { const has = !!lsGet(SKEY(x.id)); return `<div class="li"><span>${MICON[x.mode] || '•'}</span><div class="info"><a href="${esc(hashOf(x.q, x.mode))}" data-hopen="${x.id}"><b>${esc(x.q)}</b></a>
-      <div class="note">${esc(MODES[x.mode] || x.mode)}${x.focus ? ' · 🎯 ' + esc(x.focus) : ''}${x.y1 ? ` · ${esc(x.y1)}–${esc(x.y2 || '')}` : ''} · ${esc(hwhen(x.t))} · ${x.n} αποτελέσματα${has ? ' · ✓ αποθηκευμένα' : ''}</div></div>
+    ${H.map(x => { const has = !!lsGet(SKEY(x.id)); return `<div class="li"><span>${MICON[x.mode] || '•'}</span><div class="info"><a href="${esc(hashOf(x.q, x.mode, x.sub, x.ag))}" data-hopen="${x.id}"><b>${esc(x.q)}</b></a>
+      <div class="note">${esc((MODES[x.mode] || x.mode) + subLabel(x))}${x.focus ? ' · 🎯 ' + esc(x.focus) : ''}${x.y1 ? ` · ${esc(x.y1)}–${esc(x.y2 || '')}` : ''} · ${esc(hwhen(x.t))} · ${x.n} αποτελέσματα${has ? ' · ✓ αποθηκευμένα' : ''}</div></div>
       <div class="ta"><button class="cp" data-hrun="${x.id}" title="Ψάξε ξανά">⟳</button><button class="cp" data-hdel="${x.id}" title="Διαγραφή">✕</button></div></div>`; }).join('') || '<p class="note">Δεν υπάρχουν ακόμη αναζητήσεις.</p>'}
     ${H.length ? '<div class="row" style="margin-top:12px"><button class="btn" id="hclr" style="color:var(--err)">Καθαρισμός ιστορικού</button></div>' : ''}`;
   $('#dlgBody').querySelectorAll('[data-hrun]').forEach(b => b.onclick = () => { const x = histList().find(e => e.id === b.dataset.hrun); dlg.close(); if (x) rerun(x); });
@@ -1388,10 +1475,10 @@ function dlgHistory(){
 document.addEventListener('click', e => { const s = e.target.closest('#sumAll'); if (s){ batchSum(s); return; } });
 document.addEventListener('click', e => { const a = e.target.closest('[data-hopen]'); if (!a) return; e.preventDefault(); openHist(a.dataset.hopen); });
 window.addEventListener('popstate', () => {
-  const h = new URLSearchParams(location.hash.slice(1)), q = h.get('q'), m = h.get('m');
+  const h = new URLSearchParams(location.hash.slice(1)), q = h.get('q'), m = h.get('m'), hs = h.get('s') || '', ha = h.get('a') || '';
   if (!q){ state.results = []; state.sid = null; $('#q').value = ''; setMode(state.mode); return; }
-  const x = histList().find(e => e.q === q && (!m || e.mode === m));
-  if (!(x && restoreSnap(x.id))){ setMode(MODES[m] ? m : 'all', true); $('#q').value = q; search(q); }
+  const x = histList().find(e => sameSearch(e, q, m, hs, ha));
+  if (!(x && restoreSnap(x.id))){ state.hsub = hs; state.hag = ha; setMode(MODES[m] ? m : 'all', true); $('#q').value = q; search(q); }
 });
 
 function toast(t){ const el = $('#toast'); el.textContent = t; el.classList.add('on'); clearTimeout(toast.t); toast.t = setTimeout(() => el.classList.remove('on'), 1800); }
@@ -1491,12 +1578,34 @@ const INTRO = {all: 'Γράψε ένα θέμα <b>ή μια ολόκληρη ε
   articles: '<b>Μόνο επιστημονικά άρθρα</b> (περιοδικά με κριτές, πρακτικά, ανασκοπήσεις) από OpenAlex, Crossref, Semantic Scholar, DOAJ, Europe PMC, HAL και arXiv — με παραθέσεις, περίληψη και ελεύθερο PDF.',
   theses: '<b>Διδακτορικές και μεταπτυχιακές διατριβές</b> από OpenAlex, HAL, Europe PMC (βρετανικές διατριβές) και άλλες βάσεις — και σύνδεσμοι για το ελληνικό ΕΑΔΔ.',
   history: '<b>Ιστορική έρευνα</b>: γράψε ένα γεγονός, πρόσωπο ή περίοδο. Ψάχνω μαζί σε <b>αρχεία</b> (Βρετανικά Εθνικά Αρχεία, Library of Congress, ευρωπαϊκά αρχεία), <b>αποχαρακτηρισμένα έγγραφα</b> (CIA, FBI, State Department κ.ά.), <b>πρωτογενή κείμενα</b>, <b>τύπο της εποχής</b> και <b>βιβλιογραφία</b>. Τα βλέπεις σε <b>χρονολόγιο</b> και <b>ανά χώρα</b>, για να συγκρίνεις τι έλεγε κάθε πλευρά, με <b>κριτική πηγής</b> για κάθε έγγραφο και εξαγωγή <b>φακέλου έρευνας</b> για το NotebookLM.'};
+/* Υποκατηγορίες της ιστορικής έρευνας: πού ψάχνω (και, στα αποχαρακτηρισμένα, ποια υπηρεσία) */
+function drawSub(){
+  const el = $('#hsub'); if (!el) return;
+  el.hidden = state.mode !== 'history'; if (el.hidden) return;
+  const s = state.hsub || '', a = state.hag || '';
+  el.innerHTML = `<span class="lbl">Ψάξε σε:</span>${HSUBS.map(([k, n]) => `<button type="button" data-hs="${k}" class="${s === k ? 'on' : ''}" aria-pressed="${s === k}">${n}</button>`).join('')}` +
+    (s === 'declass' ? `<div class="ags"><span class="lbl">Υπηρεσία:</span>${[['', 'Όλες'], ...Object.entries(AGENCIES)].map(([k, n]) => `<button type="button" data-hag="${k}" class="${a === k ? 'on' : ''}" aria-pressed="${a === k}">${esc(n)}</button>`).join('')}</div>` : '');
+}
+$('#hsub').addEventListener('click', e => {
+  const b = e.target.closest('[data-hs],[data-hag]'); if (!b) return;
+  if ('hs' in b.dataset){ state.hsub = b.dataset.hs; if (state.hsub !== 'declass') state.hag = ''; } else state.hag = b.dataset.hag;
+  drawSub();
+  const q = $('#q').value.trim();
+  if (q) search(q); else setMode('history');
+});
+const HSUB_INTRO = {
+  archives: '<b>Αρχεία</b>: ψάχνω μόνο σε αρχειακά τεκμήρια — Βρετανικά Εθνικά Αρχεία, Library of Congress και ευρωπαϊκά αρχεία μέσω Europeana — σε αγγλικά, ελληνικά, γαλλικά, γερμανικά και ιταλικά.',
+  declass: '<b>Αποχαρακτηρισμένα έγγραφα</b>: ψάχνω μόνο σε έγγραφα που ήταν απόρρητα και δόθηκαν στη δημοσιότητα — CIA, FBI, State Department, NSA, OSS (μέσω Internet Archive) και βρετανικούς φακέλους MI5, SOE, GCHQ και Foreign Office (Βρετανικά Εθνικά Αρχεία). Διάλεξε υπηρεσία αν θέλεις μόνο μία. Στο <b>Χρονολόγιο</b> βλέπεις πότε γράφτηκε και πότε δημοσιοποιήθηκε το καθένα.',
+  news: '<b>Τύπος εποχής</b>: ψάχνω μόνο σε εφημερίδες και περιοδικά της εποχής — Europeana, Gallica, Internet Archive, Chronicling America και ελληνικό τύπο — και σου τα δείχνω ανά εφημερίδα και σε χρονολόγιο έκδοσης.',
+  texts: '<b>Πρωτογενή κείμενα</b>: συνθήκες, λόγοι, επιστολές, νόμοι και μαρτυρίες από τη Wikisource, σε πολλές γλώσσες.',
+  lit: '<b>Βιβλιογραφία</b>: βιβλία (Internet Archive, Open Library) και επιστημονικές μελέτες (OpenAlex) για το θέμα.'};
 function setMode(m, keep){
   state.mode = m; document.querySelectorAll('#modes button').forEach(b => b.classList.toggle('on', b.dataset.m === m));
+  drawSub();
   if (!keep && (!state.results.length || $('#examples'))){
     const H = histList().slice(0, 6);
-    $('#out').innerHTML = (H.length ? `<div class="recent"><span>🕘 Πρόσφατα:</span>${H.map(x => `<a class="chip" href="${esc(hashOf(x.q, x.mode))}" data-hopen="${x.id}" title="${esc(MODES[x.mode] || '')} · ${esc(hwhen(x.t))}">${MICON[x.mode] || ''} ${esc(x.q)}</a>`).join('')}<button class="chip more" id="allHist">όλο το ιστορικό →</button></div>` : '') +
-      `<div class="examples" id="examples">${EX[m].map(x => `<button class="chip">${esc(x)}</button>`).join('')}</div><p class="intro">${INTRO[m]}</p>`;
+    $('#out').innerHTML = (H.length ? `<div class="recent"><span>🕘 Πρόσφατα:</span>${H.map(x => `<a class="chip" href="${esc(hashOf(x.q, x.mode, x.sub, x.ag))}" data-hopen="${x.id}" title="${esc((MODES[x.mode] || '') + subLabel(x))} · ${esc(hwhen(x.t))}">${(x.sub && HSUBS.find(h => h[0] === x.sub)?.[1].split(' ')[0]) || MICON[x.mode] || ''} ${esc(x.q)}</a>`).join('')}<button class="chip more" id="allHist">όλο το ιστορικό →</button></div>` : '') +
+      `<div class="examples" id="examples">${EX[m].map(x => `<button class="chip">${esc(x)}</button>`).join('')}</div><p class="intro">${(m === 'history' && HSUB_INTRO[state.hsub]) || INTRO[m]}</p>`;
     $('#examples').querySelectorAll('.chip').forEach(c => c.onclick = () => { $('#q').value = c.textContent; search(c.textContent); });
     $('#allHist') && ($('#allHist').onclick = dlgHistory);
   }
@@ -1514,7 +1623,7 @@ $('#aboutBtn').onclick = () => {
     <p>Βρίσκει βιβλία, τύπο της εποχής και επιστημονικές δημοσιεύσεις σε όλες τις γλώσσες και δείχνει ποια διατίθενται νόμιμα δωρεάν.</p>
     <p><b>Εγκατάσταση ως εφαρμογή</b><br>${ios ? 'iPhone/iPad: πάτα <b>Κοινοποίηση</b> (το τετράγωνο με το βέλος) → <b>Προσθήκη στην οθόνη Αφετηρίας</b>.' : 'Android: μενού του Chrome (⋮) → <b>Εγκατάσταση εφαρμογής</b> ή <b>Προσθήκη στην αρχική οθόνη</b>.'}</p>
     <p><b>Απόρρητο</b><br>Δεν υπάρχει λογαριασμός ούτε διακομιστής: οι αναζητήσεις πάνε απευθείας από τη συσκευή σου στις βιβλιοθήκες, και οι λίστες σου μένουν μόνο σε αυτή τη συσκευή.</p>
-    <p><b>Ιστορική έρευνα</b><br>Συνδυάζει αρχεία (Βρετανικά Εθνικά Αρχεία, Library of Congress, Europeana), αποχαρακτηρισμένα έγγραφα (FOIA, CIA, FBI, State Department μέσω Internet Archive), πρωτογενή κείμενα (Wikisource), τύπο της εποχής και βιβλιογραφία. Δείχνει χρονολόγιο, προέλευση ανά χώρα, κριτική πηγής με διασταύρωση, και δίνει συνδέσμους για αρχεία σε Ελλάδα, ΗΠΑ, Βρετανία, Γαλλία, Γερμανία, Ιταλία, Τουρκία, Ρωσία, ΟΗΕ, ΝΑΤΟ κ.ά.</p>
+    <p><b>Ιστορική έρευνα</b><br>Συνδυάζει αρχεία (Βρετανικά Εθνικά Αρχεία, Library of Congress, Europeana), αποχαρακτηρισμένα έγγραφα (FOIA, CIA, FBI, State Department μέσω Internet Archive), πρωτογενή κείμενα (Wikisource), τύπο της εποχής και βιβλιογραφία. Έχει υποκατηγορίες (αρχεία, αποχαρακτηρισμένα ανά υπηρεσία, τύπος εποχής, πρωτογενή κείμενα, βιβλιογραφία) που ψάχνουν μόνο στις δικές τους πηγές. Δείχνει χρονολόγιο (και, για τα αποχαρακτηρισμένα, πότε γράφτηκε και πότε δημοσιοποιήθηκε κάθε έγγραφο), προέλευση ανά χώρα, κριτική πηγής με διασταύρωση, και δίνει συνδέσμους για αρχεία σε Ελλάδα, ΗΠΑ, Βρετανία, Γαλλία, Γερμανία, Ιταλία, Τουρκία, Ρωσία, ΟΗΕ, ΝΑΤΟ κ.ά.</p>
     <p><b>Πηγές</b><br>Project Gutenberg, Internet Archive, Open Library, Google Books, Europeana, Wikidata, Wikipedia, Wikisource, Gallica, Library of Congress, The National Archives (ΗΒ), OpenAlex, Crossref, Semantic Scholar, DOAJ, Europe PMC, HAL, arXiv. Μόνο νόμιμα ελεύθερα αντίτυπα — όσα έχουν πνευματικά δικαιώματα εμφανίζονται για αγορά ή δανεισμό.</p>
     <p><b>Περιλήψεις</b><br>Το «📝 Περίληψη» φτιάχνει σύντομη περίληψη από την περιγραφή, την περίληψη των συγγραφέων ή το ελεύθερο κείμενο, εδώ στη συσκευή σου, χωρίς AI και χωρίς κόστος. Στις εφημερίδες δείχνει τι γράφει το φύλλο για το θέμα σου.</p>
     <p><b>🤖 Ελληνικές περιλήψεις με τοπικό AI (προαιρετικό)</b><br>Αν τρέχεις <b>Ollama</b> στον υπολογιστή σου (π.χ. με το Krikri), ο Βιβλιοθηκάριος μπορεί να του στέλνει το κείμενο και να παίρνει ελληνική περίληψη. Όλα μένουν στον υπολογιστή σου.</p>
@@ -1546,11 +1655,11 @@ $('#installBtn').onclick = async () => { if (!deferred) return; deferred.prompt(
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
 /* Εκκίνηση: σύνδεσμος με αναζήτηση (#q=…) → τα αποθηκευμένα αποτελέσματα ή νέα αναζήτηση· αλλιώς η τελευταία αναζήτηση των 3 τελευταίων ημερών */
 (function boot(){
-  const h = new URLSearchParams(location.hash.slice(1)), q = h.get('q'), m = h.get('m');
+  const h = new URLSearchParams(location.hash.slice(1)), q = h.get('q'), m = h.get('m'), hs = h.get('s') || '', ha = h.get('a') || '';
   if (q){
-    const x = histList().find(e => e.q === q && (!m || e.mode === m));
+    const x = histList().find(e => sameSearch(e, q, m, hs, ha));
     if (x && restoreSnap(x.id)) return;
-    setMode(MODES[m] ? m : 'all', true); $('#q').value = q; search(q); return;
+    state.hsub = hs; state.hag = ha; setMode(MODES[m] ? m : 'all', true); $('#q').value = q; search(q); return;
   }
   const x = histList().find(e => e.id === lsGet('vv_cur'));
   if (x && Date.now() - x.t < 3 * 864e5 && restoreSnap(x.id)) return;
