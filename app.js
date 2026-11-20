@@ -296,7 +296,7 @@ async function europeana(term, lang, extra = []){
     const au = f('dcCreator');
     return {id: 'eu-' + String(it.id).replace(/\W+/g, '').slice(-50), source: 'Europeana', title: f('title'), author: au && !au.startsWith('http') ? au : prov,
       year: String(f('year')), lang: normLang(f('language')), subjects: [], kind: open ? 'free' : 'catalog', readOnly: open, read: f('edmIsShownAt'),
-      page: f('edmIsShownAt') || it.guid, note: prov ? 'από ' + prov : ''};
+      page: f('edmIsShownAt') || it.guid, note: prov ? 'από ' + prov : '', eu: it.id};
   });
 }
 
@@ -317,7 +317,7 @@ async function pressEuropeana(term, y1, y2){
   return (d.items || []).map(it => { const t = [].concat(it.title || [])[0] || ''; const m = t.match(/\d{4}-\d\d-\d\d/);
     return {id: 'eun-' + String(it.id).replace(/\W+/g, '').slice(-50), source: 'Europeana', publication: t.split(/\s+[-–]\s+\d{4}/)[0], date: m ? m[0] : String([].concat(it.year || [])[0] || ''),
       lang: normLang([].concat(it.language || [])[0]), page: [].concat(it.edmIsShownAt || [])[0] || it.guid, place: [].concat(it.dataProvider || [])[0],
-      country: CEN[plain([].concat(it.country || [])[0])] || '', press: true}; });
+      country: CEN[plain([].concat(it.country || [])[0])] || '', press: true, eu: it.id}; });
 }
 async function pressGallica(term, y1, y2, news = true){
   let query = `gallica all "${term}" and dc.type all "fascicule"` + (news ? '' : ' and (dc.title all "revue" or dc.title all "bulletin" or dc.title all "journal" or dc.title all "annales")');
@@ -488,7 +488,7 @@ async function europeanaArch(term, country){
     const f = k => [].concat(it[k] || [])[0] || '', yr = String(f('year'));
     return {id: 'eua-' + String(it.id).replace(/\W+/g, '').slice(-50), source: 'Europeana', title: clean(f('title')), abstract: clean(f('dcDescription')).slice(0, 600),
       date: yr, year: yr, lang: normLang(f('language')), heldBy: f('dataProvider'), country: CEN[plain(f('country'))] || '', subjects: [], kind: 'free', readOnly: true,
-      read: f('edmIsShownAt') || it.guid, arch: true, page: f('edmIsShownAt') || it.guid};
+      read: f('edmIsShownAt') || it.guid, arch: true, page: f('edmIsShownAt') || it.guid, eu: it.id};
   });
 }
 /* Internet Archive: αποχαρακτηρισμένα έγγραφα (FOIA, CIA, FBI, State Department, βρετανικές υπηρεσίες κ.ά.) */
@@ -820,7 +820,7 @@ function pcard(r){
   return `<div class="card"><div class="fmt press">📰</div><div class="info">
     <div class="t"><a href="${esc(r.page)}" target="_blank" rel="noopener">${esc(r.publication)}</a><button class="cp" data-cp="${esc(r.id)}" title="Αντιγραφή">⧉</button></div>
     <div class="meta"><span class="pill">${esc(r.date || 'χωρίς ημερομηνία')}</span>${h && r.country ? `<span class="pill">${cflag(r.country)} ${esc(cname(r.country))}</span>` : ''}${r.lang ? `<span class="pill">${esc(LANGS[r.lang] || r.lang)}</span>` : ''}<span>${esc([r.place, r.source].filter(Boolean).join(' · '))}</span></div>
-    <div class="acts"><a class="btn pri" href="${esc(r.page)}" target="_blank" rel="noopener">Άνοιγμα ↗</a>${h && r.lang !== 'el' ? `<a class="btn" href="${esc(trUrl(r.page))}" target="_blank" rel="noopener" title="Αυτόματη μετάφραση της σελίδας στα ελληνικά">Μετάφραση ↗</a>` : ''}${r.id.startsWith('iap-') ? `<button class="btn" data-sum="${esc(r.id)}" title="Βρίσκει στο κείμενο του φύλλου τι γράφει για το θέμα σου">📝 Τι γράφει</button>` : ''}${h ? `<button class="btn" data-crit="${esc(r.id)}">🔍 Κριτική</button>` : ''}<button class="btn" data-add="${esc(r.id)}">+ Λίστα</button><button class="btn" data-share="${esc(r.id)}">Κοινοποίηση</button></div>${sumBox(r)}</div></div>`;
+    <div class="acts"><a class="btn pri" href="${esc(r.page)}" target="_blank" rel="noopener">Άνοιγμα ↗</a>${h && r.lang !== 'el' ? `<a class="btn" href="${esc(trUrl(r.page))}" target="_blank" rel="noopener" title="Αυτόματη μετάφραση της σελίδας στα ελληνικά">Μετάφραση ↗</a>` : ''}${/^(iap|eun?)-/.test(r.id) ? `<button class="btn" data-sum="${esc(r.id)}" title="Βρίσκει στο κείμενο του φύλλου τι γράφει για το θέμα σου">📝 Τι γράφει</button>` : ''}${h ? `<button class="btn" data-crit="${esc(r.id)}">🔍 Κριτική</button>` : ''}<button class="btn" data-add="${esc(r.id)}">+ Λίστα</button><button class="btn" data-share="${esc(r.id)}">Κοινοποίηση</button></div>${sumBox(r)}</div></div>`;
 }
 /* Κάρτα αρχειακού τεκμηρίου / αποχαρακτηρισμένου εγγράφου / πρωτογενούς κειμένου */
 function acard(r){
@@ -1071,7 +1071,7 @@ const splitSentences = text => String(text).replace(/\s+/g, ' ').split(/(?<=[.!?
 /* Εξαγωγική περίληψη: οι προτάσεις με τις πιο «βαριές» λέξεις του κειμένου, με προτίμηση σε όσες αναφέρουν το θέμα της αναζήτησης */
 function extractive(text, n = 3){
   const S = splitSentences(text).slice(0, 1500);
-  if (!S.length){ const t = clean(text); return t.length > 60 ? [t.length > 420 ? t.slice(0, 420).replace(/\s\S*$/, '') + '…' : t] : []; }
+  if (!S.length){ const t = clean(text); return t.length >= 20 ? [t.length > 420 ? t.slice(0, 420).replace(/\s\S*$/, '') + '…' : t] : []; }
   if (S.length <= n) return S;
   const tok = s => (plain(s).match(/[\p{L}\p{N}]+/gu) || []).filter(w => w.length > 2 && !STOPW.has(w) && !/^\d+$/.test(w)).map(stem);
   const D = S.map(tok), df = {}, tf = {}, N = S.length, q = new Set(qwords().map(stem));
@@ -1137,10 +1137,91 @@ async function wikisourceText(r){
   doc.querySelectorAll('style,script,.mw-editsection,.reference,.headertemplate,.ws-noexport,.noprint').forEach(e => e.remove());
   return (doc.body.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 300000);
 }
+/* Europeana: πλήρης καρτέλα τεκμηρίου (περιγραφή, ταυτότητα) και, όπου υπάρχει, ψηφιακό κείμενο μέσω IIIF */
+const EUK = 'api2demo';
+function lmVals(lm, R = {}, all = false){
+  if (!lm) return [];
+  if (typeof lm === 'string' || Array.isArray(lm)) lm = {def: [].concat(lm)};
+  const out = [];
+  for (const k of new Set(['el', 'en', 'def', ...Object.keys(lm)])){
+    const v = [].concat(lm[k] || []).map(x => R[x] || x).filter(x => x && typeof x === 'string' && !/^(https?:|#)/.test(x)).map(clean).filter(Boolean);
+    if (v.length){ out.push(...v); if (!all) break; }
+  }
+  return [...new Set(out)];
+}
+async function euId(r){
+  if (r.eu) return r.eu;
+  const m = String((r.read || '') + ' ' + (r.page || '')).match(/europeana\.eu\/(?:[a-z]{2}\/)?item(\/[^/?#\s]+\/[^/?#\s]+)/);
+  if (m) return (r.eu = m[1]);
+  const t = String(r.title || r.publication || '').replace(/["\\]/g, ' ').slice(0, 150).trim(); if (!t) return '';
+  const d = await getJSON('https://api.europeana.eu/record/v2/search.json?' + new URLSearchParams([['wskey', EUK], ['query', `title:"${t}"`], ['rows', '10'], ['profile', 'minimal']]), 15000);
+  const it = (d.items || []).find(x => r.id.endsWith(String(x.id).replace(/\W+/g, '').slice(-50)));
+  return it ? (r.eu = it.id) : '';
+}
+async function euRecord(eu){
+  const o = (await getJSON(`https://api.europeana.eu/record/v2${eu}.json?wskey=${EUK}`, 20000)).object || {};
+  const R = {};
+  for (const k of ['agents', 'concepts', 'places', 'timespans']) for (const e of o[k] || []){ const v = lmVals(e.prefLabel); if (v[0]) R[e.about] = v[0]; }
+  const P = [...(o.proxies || [])].sort((a, b) => !!a.europeanaProxy - !!b.europeanaProxy);
+  const F = (...ks) => [...new Set(ks.flatMap(k => P.flatMap(p => lmVals(p[k], R))))];
+  const desc = F('dcDescription', 'dctermsAbstract', 'dctermsTableOfContents');
+  const meta = [['Είδος', F('dcType')], ['Δημιουργός', F('dcCreator')], ['Συντελεστές', F('dcContributor')], ['Χρονολογία', F('dcDate', 'dctermsCreated', 'dctermsIssued', 'dctermsTemporal')],
+    ['Θέματα', F('dcSubject')], ['Τόπος', F('dctermsSpatial', 'dcCoverage')], ['Έκταση', F('dctermsExtent', 'dcFormat')], ['Μέρος του', F('dctermsIsPartOf')],
+    ['Εκδότης', F('dcPublisher')], ['Πηγή', F('dcSource')], ['Φορέας', lmVals(o.aggregations?.[0]?.edmDataProvider, R)]]
+    .map(([l, v]) => [l, v.slice(0, l === 'Θέματα' ? 6 : 3).join(' · ').slice(0, 300)]).filter(([, v]) => v);
+  return {desc, meta};
+}
+/* Ψηφιακό κείμενο (OCR ή μεταγραφή) από τη σελίδα σχολιασμών IIIF μιας σελίδας */
+async function euPageText(u, cache){
+  const a = await getJSON(u, 20000), L = a.resources || a.items || [];
+  const pick = L.find(x => /page/i.test(String(x.dcType || x.textGranularity || ''))) || L[0]; if (!pick) return '';
+  const res = pick.resource || pick.body || {}, inline = res.value || res.chars || res.source?.value;
+  if (inline && !String(res['@id'] || res.id || '').includes('#char=')) return String(inline);
+  const ru = String(res['@id'] || res.id || res.source?.id || res.source || '').split('#')[0]; if (!/^https?:/.test(ru)) return inline ? String(inline) : '';
+  if (!cache.has(ru)) cache.set(ru, getJSON(ru, 20000).then(t => String(t.value || t.chars || '')).catch(() => ''));
+  return cache.get(ru);
+}
+async function euFull(eu){
+  const base = `https://iiif.europeana.eu/presentation${eu}`, m = await getJSON(base + '/manifest', 20000);
+  const canv = m.sequences?.[0]?.canvases || m.items || [];
+  const pages = canv.map(c => { const o = [].concat(c.otherContent || c.annotations || [])[0]; return typeof o === 'string' ? o : o?.['@id'] || o?.id; }).filter(Boolean);
+  const out = {full: '', pages: 0, hits: []}; if (!pages.length) return out;
+  const cache = new Map(), txt = await Promise.all(pages.slice(0, 4).map(u => euPageText(u, cache).catch(() => '')));
+  out.full = txt.filter(Boolean).join('\n\n'); out.pages = txt.filter(Boolean).length;
+  // Αναζήτηση μέσα σε όλο το τεκμήριο (IIIF Content Search), για να βρεθούν και σημεία μετά τις πρώτες σελίδες
+  const svc = [].concat(m.service || []).find(s => /search/i.test(String(s.profile || '') + String(s['@context'] || '') + String(s.type || '')));
+  const su = svc?.['@id'] || svc?.id, W = qwords().sort((a, b) => b.length - a.length);
+  if (su && W.length) for (const q of [W.slice(0, 3).join(' '), W[0]]){
+    try {
+      const s = await getJSON(su + (su.includes('?') ? '&' : '?') + qs({q}), 15000);
+      out.hits = (s.hits || []).map(h => { const x = [].concat(h.selectors || [])[0] || h;
+        return [x.before || x.prefix, x.match || x.exact, x.after || x.suffix].filter(Boolean).join(' ').replace(/\s+/g, ' ').trim(); }).filter(t => t.length > 20).slice(0, 4).map(t => '…' + t + '…');
+    } catch (e) {}
+    if (out.hits.length || q === W[0]) break;
+  }
+  return out;
+}
+async function euText(r){
+  const eu = await euId(r); if (!eu) return {desc: [], meta: [], full: '', pages: 0, hits: []};
+  const [a, b] = await Promise.allSettled([euRecord(eu), euFull(eu)]);
+  return {...(a.value || {desc: [], meta: []}), ...(b.value || {full: '', pages: 0, hits: []})};
+}
+/* The National Archives (ΗΒ): η πλήρης περιγραφή του φακέλου (scope and content) */
+async function tnaDetails(id){
+  const d = await getJSON(`https://discovery.nationalarchives.gov.uk/API/records/v1/details/${encodeURIComponent(id)}`, 15000);
+  const G = k => { const f = Object.keys(d).find(x => x.toLowerCase() === k.toLowerCase()); return f ? d[f] : undefined; };
+  const sc = G('scopeContent'), held = [].concat(G('heldBy') || [])[0];
+  const desc = [sc?.description ?? sc?.Description ?? sc, G('administrativeBackground'), G('arrangement')].map(x => clean(typeof x === 'string' ? x : '')).filter(Boolean);
+  const meta = [['Κωδικός', G('citableReference')], ['Χρονολογία', G('coveringDates')], ['Έκταση', [G('physicalDescriptionExtent'), G('physicalDescriptionForm')].filter(Boolean).join(' ')],
+    ['Φορέας', held?.xReferenceName || held?.XReferenceName || str(held)]].map(([l, v]) => [l, clean(typeof v === 'string' ? v : '')]).filter(([, v]) => v);
+  return {desc, meta};
+}
 /* Ό,τι κείμενο υπάρχει για ένα εύρημα: περίληψη/περιγραφή, TLDR, και πλήρες κείμενο όπου διατίθεται ελεύθερα */
 async function gatherText(r){
-  const parts = [], src = []; let tldr = '', full = '', fullSrc = '';
-  const add = (t, s) => { t = clean(t); if (t.length > 60 && !parts.some(p => p.slice(0, 80) === t.slice(0, 80))){ parts.push(t); src.push(s); } };
+  const parts = [], src = []; let tldr = '', full = '', fullSrc = '', meta = [], hits = [];
+  const tp = plain(r.title || r.publication || '');
+  const add = (t, s) => { t = clean(t); const p = plain(t);
+    if (t.length >= 20 && !(tp && (tp.includes(p) || (p.includes(tp) && p.length < tp.length + 25))) && !parts.some(x => x.slice(0, 80) === t.slice(0, 80))){ parts.push(t); src.push(s); } };
   const id = r.id || '', T = [];
   if (r.scholar && r.doi){
     T.push(getJSON(`https://api.semanticscholar.org/graph/v1/paper/DOI:${encodeURIComponent(r.doi)}?fields=tldr,abstract`, 15000).then(p => { tldr = p.tldr?.text || ''; add(p.abstract, 'την περίληψη των συγγραφέων'); }));
@@ -1152,19 +1233,25 @@ async function gatherText(r){
   if (id.startsWith('gb-')) T.push(getJSON(`https://www.googleapis.com/books/v1/volumes/${id.slice(3)}`, 15000).then(v => add(v.volumeInfo?.description, 'την περιγραφή (Google Books)')));
   if (id.startsWith('pg-')) T.push(getJSON(`https://gutendex.com/books/${id.slice(3)}`, 15000).then(b => (b.summaries || []).forEach(s => add(s, 'την περίληψη του Project Gutenberg'))));
   if (id.startsWith('ws-')) T.push(wikisourceText(r).then(t => { if (t){ full = t; fullSrc = 'το πλήρες κείμενο (Wikisource)'; } }));
+  if (/^eu[an]?-/.test(id)) T.push(euText(r).then(x => { x.desc.forEach(d => add(d, 'την περιγραφή (Europeana)')); meta = x.meta;
+    if (x.full){ full = x.full; fullSrc = `το ψηφιακό κείμενο (Europeana, ${x.pages === 1 ? '1 σελίδα' : x.pages + ' σελίδες'})`; } hits = x.hits; }));
+  if (id.startsWith('tna-')) T.push(tnaDetails(id.slice(4)).then(x => { x.desc.forEach(d => add(d, 'την περιγραφή (The National Archives)')); meta = x.meta; }));
   if (id.startsWith('loc-')) T.push(getJSON(r.page + (r.page.includes('?') ? '&' : '?') + 'fo=json', 15000).then(d => add([].concat(d.item?.summary || [], d.item?.description || [], d.item?.notes || []).map(str).join(' '), 'την περιγραφή (Library of Congress)')));
   await Promise.allSettled(T);
   if (r.abstract) add(r.abstract, r.scholar ? 'την περίληψη των συγγραφέων' : 'την περιγραφή');
-  return {parts, src, tldr, full, fullSrc};
+  return {parts, src, tldr, full, fullSrc, meta, hits};
 }
 const sumBox = r => `<div class="sum" id="s-${esc(r.id)}">${r.sum ? sumHTML(r) : ''}</div>`;
 function sumHTML(r){
   const S = r.sum; if (!S) return '';
-  const all = [S.tldr, ...(S.sents || [])].filter(Boolean).join(' ');
+  const all = [S.tldr, ...(S.sents || []), ...(S.sents?.length ? [] : (S.meta || []).map(m => m[0] + ': ' + m[1]))].filter(Boolean).join(' ');
+  const showMeta = S.meta?.length && (r.press ? !S.kw?.length : (r.arch || !S.sents?.length));
   const tr = S.lang !== 'el' && all ? `<a class="btn" href="https://translate.google.com/?sl=auto&tl=el&op=translate&text=${encodeURIComponent(all.slice(0, 1800))}" target="_blank" rel="noopener">Μετάφραση στα ελληνικά ↗</a>` : '';
   return `<div class="sumin">
     ${S.tldr ? `<p><b>Με μια φράση:</b> ${esc(S.tldr)} <small class="note">(TLDR, Semantic Scholar)</small></p>` : ''}
     ${S.sents?.length ? `<b>${S.fromFull ? 'Αποσπάσματα που ξεχωρίζουν' : 'Σύντομη περίληψη'}</b> <small class="note">— αυτόματη, από ${esc(S.src || 'την περιγραφή')}</small><ul>${S.sents.map(s => `<li>${hl(s)}</li>`).join('')}</ul>` : ''}
+    ${showMeta ? `<b>Τι είναι</b> <small class="note">— από την καρτέλα του τεκμηρίου</small><dl class="idm">${S.meta.slice(0, 8).map(([l, v]) => `<dt>${esc(l)}</dt><dd>${hl(v)}</dd>`).join('')}</dl>` : ''}
+    ${S.noText ? `<p class="note">Δεν υπάρχει ψηφιακό κείμενο για περίληψη· μάλλον είναι σαρωμένο έγγραφο ή εικόνα. Πάτα «Άνοιγμα» για να το διαβάσεις.</p>` : ''}
     ${S.kw?.length ? `<b>${r.press ? 'Τι γράφει για το θέμα σου' : 'Πού αναφέρεται το θέμα σου'}</b> <small class="note">— από ${esc(S.fullSrc || 'το κείμενο')}</small><ul class="kw">${S.kw.map(s => `<li>${hl(s)}</li>`).join('')}</ul>` : ''}
     ${S.ai ? `<div class="ai"><b>🤖 Περίληψη στα ελληνικά</b> <small class="note">— ${esc(S.aiModel || 'τοπικό AI')}, στον υπολογιστή σου</small><p>${esc(S.ai)}</p></div>` : ''}
     ${tr || (aiCfg() && !S.ai) ? `<div class="acts">${tr}${aiCfg() && !S.ai ? `<button class="btn" data-ai="${esc(r.id)}" title="Στέλνει το κείμενο στο Ollama του υπολογιστή σου">🤖 Στα ελληνικά με τοπικό AI</button>` : ''}</div>` : ''}</div>`;
@@ -1176,14 +1263,18 @@ async function summarize(r, btn){
   if (box){ box.hidden = false; box.innerHTML = `<p class="note"><span class="spin"></span>${r.press ? 'Διαβάζω το κείμενο του φύλλου…' : 'Διαβάζω την περιγραφή και, όπου υπάρχει, το κείμενο…'}</p>`; }
   try {
     const g = await gatherText(r), base = g.parts.join(' ');
-    const S = {tldr: g.tldr, src: g.src[0] || '', sents: base ? extractive(base, base.length > 1500 ? 4 : 3) : [], kw: [], fullSrc: g.fullSrc};
-    if (g.full){ S.kw = kwic(g.full, r.press ? 4 : 3); if (!S.sents.length && !r.press){ S.sents = extractive(g.full.slice(0, 150000), 4); S.src = g.fullSrc; S.fromFull = true; } }
-    S.lang = isGreekText([S.tldr, ...S.sents, ...S.kw].join(' ')) ? 'el' : (r.lang && r.lang !== 'el' ? r.lang : 'en');
+    const S = {tldr: g.tldr, src: g.src[0] || '', sents: base ? extractive(base, base.length > 1500 ? 4 : 3) : [], kw: [], fullSrc: g.fullSrc, meta: g.meta || []};
+    if (g.hits?.length){ S.kw = g.hits; S.fullSrc = 'αναζήτηση μέσα στο ψηφιακό κείμενο (Europeana)'; }
+    if (g.full){ if (!S.kw.length) S.kw = kwic(g.full, r.press ? 4 : 3); if (!S.sents.length && !r.press){ S.sents = extractive(g.full.slice(0, 150000), 4); S.src = g.fullSrc; S.fromFull = true; } }
+    S.lang = isGreekText([S.tldr, ...S.sents, ...S.kw, ...S.meta.map(m => m[1])].join(' ')) ? 'el' : (r.lang && r.lang !== 'el' ? r.lang : 'en');
     if (!S.tldr && !S.sents.length && !S.kw.length){
-      if (box) box.innerHTML = `<p class="note err">${g.full ? 'Το κείμενο δεν αναφέρει τους όρους της αναζήτησης.' : 'Δεν βρήκα περιγραφή ή ελεύθερο κείμενο για περίληψη.'} Άνοιξε τη σελίδα της πηγής.</p>`;
-      return;
+      if (!S.meta.length){
+        if (box) box.innerHTML = `<p class="note">${g.full ? 'Το ψηφιακό κείμενο δεν αναφέρει τους όρους της αναζήτησης.' : 'Δεν υπάρχει περιγραφή ούτε ψηφιακό κείμενο για αυτό το τεκμήριο· συνήθως είναι σαρωμένο έγγραφο ή εικόνα.'} Πάτα «Άνοιγμα» για να το δεις.</p>`;
+        return;
+      }
+      S.noText = !g.full;
     }
-    r.sum = S; r._text = [base, (g.full || '').slice(0, 20000)].join(' ').trim();   // το _text μένει μόνο στη μνήμη, για το τοπικό AI
+    r.sum = S; r._text = [S.meta.map(([l, v]) => l + ': ' + v).join('. '), base, (g.full || '').slice(0, 20000)].join('\n').trim();   // το _text μένει μόνο στη μνήμη, για το τοπικό AI
     if (box) box.innerHTML = sumHTML(r);
     persist();
   } catch (e) { if (box) box.innerHTML = `<p class="note err">Δεν έγινε περίληψη: ${esc(e.message)}</p>`; }
@@ -1205,10 +1296,10 @@ async function aiSummary(r, btn){
   const box = $('#s-' + CSS.escape(r.id));
   if (btn){ btn.disabled = true; btn.innerHTML = '<span class="spin"></span>Γράφει το τοπικό AI…'; }
   try {
-    if (!r._text){ const g = await gatherText(r); r._text = [...g.parts, (g.full || '').slice(0, 20000)].join(' ').trim(); }
+    if (!r._text){ const g = await gatherText(r); r._text = [(g.meta || []).map(([l, v]) => l + ': ' + v).join('. '), ...g.parts, (g.full || '').slice(0, 20000)].join('\n').trim(); }
     const text = r._text.slice(0, 7000); if (!text) throw new Error('δεν υπάρχει κείμενο');
     const prompt = `Είσαι βοηθός βιβλιογραφικής έρευνας. Γράψε στα ελληνικά μια σύντομη περίληψη (3 έως 5 προτάσεις) του παρακάτω κειμένου. ` +
-      `Αν το κείμενο σχετίζεται με το θέμα «${state.q || ''}», εξήγησε με μία πρόταση πώς. Μη γράψεις τίποτα που δεν υπάρχει στο κείμενο.\n\nΤίτλος: ${r.title || r.publication}\n\nΚείμενο:\n${text}`;
+      `Αν το κείμενο σχετίζεται με το θέμα «${state.q || ''}», εξήγησε με μία πρόταση πώς. Αν υπάρχουν μόνο στοιχεία καταλόγου (είδος, δημιουργός, χρονολογία, θέματα), περίγραψε με 2 προτάσεις τι είναι το τεκμήριο. Μη γράψεις τίποτα που δεν υπάρχει στο κείμενο.\n\nΤίτλος: ${r.title || r.publication}\n\nΚείμενο:\n${text}`;
     const ctl = new AbortController(), t = setTimeout(() => ctl.abort(), 180000);
     let j;
     try {
@@ -1329,7 +1420,7 @@ function lists(){ try { return JSON.parse(localStorage.getItem('vv_lists') || '[
 function saveLists(l){ try { localStorage.setItem('vv_lists', JSON.stringify(l)); } catch (e) { toast('Δεν αποθηκεύτηκε (ιδιωτική περιήγηση;)'); } }
 const listsAll = () => lists().flatMap(l => l.items);
 const slim = r => Object.fromEntries(Object.entries(r).filter(([k]) => ['id', 'title', 'publication', 'author', 'year', 'date', 'lang', 'kind', 'ext', 'url', 'ia', 'page', 'source', 'sources',
-  'category', 'venue', 'doi', 'cited', 'scholar', 'press', 'readOnly', 'read', 'price', 'buy', 't', 'arch', 'country', 'heldBy', 'reference', 'place', 'abstract', 'sum', 'doi', 'oa', 'scholar'].includes(k))
+  'category', 'venue', 'doi', 'cited', 'scholar', 'press', 'readOnly', 'read', 'price', 'buy', 't', 'arch', 'country', 'heldBy', 'reference', 'place', 'abstract', 'sum', 'doi', 'oa', 'scholar', 'eu'].includes(k))
   .map(([k, v]) => [k, k === 'abstract' ? String(v || '').slice(0, 400) : v]));
 function addToList(r, btn){
   let l = lists();
