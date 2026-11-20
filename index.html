@@ -134,6 +134,24 @@ dialog::backdrop{background:rgba(20,15,10,.45)}
 .toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:8px 14px;border-radius:99px;font-size:13.5px;z-index:50;opacity:0;transition:opacity .2s;pointer-events:none}
 .toast.on{opacity:1}
 footer{color:var(--muted);font-size:12px;text-align:center;padding:10px 16px calc(20px + env(safe-area-inset-bottom))}
+/* περιλήψεις, ιστορικό, ανοιχτά άρθρα */
+.sum:empty{display:none}
+.sum{margin-top:8px}
+.sumin{background:var(--soft);border-radius:10px;padding:9px 12px;font-size:13.5px;line-height:1.5}
+.sumin ul{margin:4px 0 8px;padding-left:18px}.sumin li{margin:3px 0}
+.sumin ul.kw li{font-style:italic;color:var(--ink)}
+.sumin p{margin:2px 0 8px}.sumin .acts{margin-top:4px}
+.sumin .ai{border-top:1px solid var(--line);padding-top:6px;margin-top:4px}
+mark{background:var(--gold-soft);color:inherit;border-radius:3px;padding:0 1px}
+.pill.oa{background:var(--ok-soft);color:var(--ok)}
+.restored{display:flex;flex-wrap:wrap;align-items:center;gap:8px;background:var(--soft);border-radius:10px;padding:7px 12px;margin:0 0 10px;font-size:13px;color:var(--muted)}
+.restored .btn{margin-left:auto}
+.recent{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:0 0 10px;font-size:13px}
+.recent>span{color:var(--muted);margin-right:2px}
+.recent a.chip{text-decoration:none;color:inherit;max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.recent .chip.more{background:none;border-style:dashed;color:var(--muted)}
+#sumAll{margin-left:auto}
+#sumAll+#dossBtn{margin-left:0}
 /* ιστορική λειτουργία */
 .fmt.arch{background:#5b4a7a;font-size:9.5px}.fmt.arch.declass{background:#2f6a45}.fmt.arch.texts{background:#8a6224}
 .pill.k-archives{background:#ece6f5;color:#5b4a7a}.pill.k-declass{background:var(--ok-soft);color:var(--ok)}.pill.k-texts{background:var(--gold-soft);color:var(--gold)}
@@ -196,6 +214,7 @@ ol.q{padding-left:20px;margin:6px 0 14px;font-size:13.5px}ol.q li{margin:5px 0}
   <div><h1>Βιβλιοθηκάριος</h1><small>βιβλία, τύπος και έρευνες σε κάθε γλώσσα</small></div>
   <div class="hbtns">
     <button class="ib pri" id="installBtn" hidden title="Εγκατάσταση ως εφαρμογή"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12m0 0-4-4m4 4 4-4M5 21h14"/></svg><span>Εγκατάσταση</span></button>
+    <button class="ib" id="histBtn" title="Ιστορικό αναζητήσεων"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5M12 7v5l3 2"/></svg><span>Ιστορικό</span></button>
     <button class="ib" id="listsBtn" title="Οι λίστες μου"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21l-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg><span>Λίστες</span></button>
     <button class="ib" id="aboutBtn" title="Πληροφορίες"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.5"/></svg></button>
   </div>
